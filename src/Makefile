@@ -12,8 +12,11 @@ endif
 
 LDFLAGS=
 
+EXEC=pcg$(coarray)
 
-EXEC=prepafile pcg$(coarray)
+ifneq ($(COARRAYENABLE),1)
+ EXEC+=prepafile
+endif
 
 all: $(EXEC)
 

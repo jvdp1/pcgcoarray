@@ -2,6 +2,7 @@
 !include 'modfiles.f90'
 
 program  pcgcorray
+ !$ use omp_lib
  use modkind
  use modsparse
  implicit none
@@ -16,7 +17,7 @@ program  pcgcorray
  real(kind=real8),allocatable::rhs(:),precond(:)
  real(kind=real8),allocatable::p(:),z(:)
  real(kind=real8),allocatable::r(:)[:],w(:)[:],x(:)[:]
- real(kind=real8)::val
+ real(kind=real8)::t1,val
  type(csr)::sparse
 
  call get_environment_variable("HOSTNAME",value=host)
@@ -158,7 +159,7 @@ program  pcgcorray
   b_norm=b_norm[1]
   resvec1=resvec1[1]
  endif
- sync all  !not sure if it is needed
+ sync all  !not sure if it is really needed
 
  conv=resvec1/b_norm
 
@@ -172,6 +173,7 @@ program  pcgcorray
  thr=tol*b_norm
 
  !Start iteration
+ !$ t1=omp_get_wtime() 
  startcolk=startcol-1
  do while(resvec1.gt.thr.and.iter.le.maxit)
   !z=M*r
@@ -274,6 +276,7 @@ program  pcgcorray
   iter=iter+1
 
  enddo
+ !$ if(this_image().eq.1)write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')omp_get_wtime()-t1
 
  sync all
  if(this_image().eq.1)then

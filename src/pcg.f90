@@ -1,7 +1,7 @@
 !ifort -O3 -heap-arrays -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -qopenmp -parallel -lpthread  pcg.f90 -o pcg
-!include 'modfiles.f90'
 
 program  pcgcorray
+ !$ use omp_lib
  use modkind
  use modsparse
  implicit none
@@ -16,7 +16,7 @@ program  pcgcorray
  real(kind=real8),allocatable::rhs(:),precond(:)
  real(kind=real8),allocatable::x(:),p(:),z(:)
  real(kind=real8),allocatable::r(:),w(:)
- real(kind=real8)::val
+ real(kind=real8)::t1
  type(csr)::sparse
 
 
@@ -86,6 +86,7 @@ program  pcgcorray
  thr=tol*b_norm
 
  !Start iteration
+ !$ t1=omp_get_wtime() 
  do while(resvec1.gt.thr.and.iter.le.maxit)
   startcolk=startcol-1
   !z=M*r
@@ -136,7 +137,7 @@ program  pcgcorray
   endif
   iter=iter+1
  enddo
-
+ !$ write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')omp_get_wtime()-t1
 
  call print_ascii(x,1,neq)
 
