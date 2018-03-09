@@ -1,5 +1,4 @@
 !ifort prepafile.f90 -o prepafile
-!include 'modfiles.f90'
 
 program  prepafile
  use modkind
@@ -25,7 +24,7 @@ program  prepafile
  print*,'read a'
  close(un)
 
-! call sparse%printfile(500)
+ call sparse%printfile(500)
  write(*,'(a/)')' The matrix is read...'
 
  open(newunit=un,file='param.pcgcoarray',status='replace',action='write')
