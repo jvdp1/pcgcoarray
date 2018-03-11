@@ -4,11 +4,13 @@ program  prepafile
  use modkind
  use modsparse
  implicit none
- integer(kind=intc)::io,un,i,j,k,l,m,n,numimages=4
+ integer(kind=intc)::io,un,unin,i,j,k,l,m,n,image,numimages=4
  integer(kind=int4)::nia,startrow,startcol,endrow,endcol
  integer(kind=intnel)::nel
+ character(len=3)::typesparse='col'
  character(len=10)::cdummy
  real(kind=real8)::val
+ logical::lex
  type(csr)::sparse,sparsesub
 
  open(newunit=un,file='matrixija.bin',status='old',action='read',access='stream')
@@ -24,27 +26,46 @@ program  prepafile
  print*,'read a'
  close(un)
 
- call sparse%printfile(500)
+ !call sparse%printfile(500)
  write(*,'(a/)')' The matrix is read...'
 
- open(newunit=un,file='param.pcgcoarray',status='replace',action='write')
+
+ inquire(file='param.prepafile',exist=lex)
+ if(lex)then
+  open(newunit=unin,file='param.prepafile',action='read')
+  numimages=0
+  do 
+   read(unin,*,iostat=io)i,j,k
+   if(io.ne.0)exit
+   if(k.ne.sparse%n)typesparse='row'
+   numimages=numimages+1
+  enddo
+  rewind(unin)
+ endif
+
+ open(newunit=un,file='param.pcgcoarray.'//adjustl(typesparse(:len_trim(typesparse))),status='replace',action='write')
  do i=1,numimages
-  startrow=1
-  endrow=sparse%n
-  nel=int(real(endrow)/numimages)
-  startcol=nel*(i-1)+1
-  endcol=startcol+nel-1
-  if(i.eq.numimages)endcol=sparse%m
+  if(lex)then
+   read(unin,*)image,startrow,endrow,startcol,endcol
+  else
+   image=i
+   startrow=1
+   endrow=sparse%n
+   nel=int(real(endrow)/numimages)
+   startcol=nel*(image-1)+1
+   endcol=startcol+nel-1
+   if(image.eq.numimages)endcol=sparse%m
+  endif
 
   sparsesub=sparse%sub(startrow,endrow,startcol,endcol)
 
-!  call sparsesub%printfile(500+i)
-  call sparsesub%printbin(i)
+  !call sparsesub%printfile(500+image)
+  call sparsesub%printbin(image,typesparse)
   call sparsesub%reset
-  write(un,*)i,startrow,endrow,startcol,endcol
+  write(un,*)image,startrow,endrow,startcol,endcol
  enddo
+
  close(un)
-
-
+ if(lex)close(unin)
 
 end program

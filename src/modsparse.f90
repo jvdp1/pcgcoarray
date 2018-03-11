@@ -21,7 +21,8 @@ module modsparse
   integer(kind=int4)::sizeia
  contains
   procedure::alloc=>alloc_csr  
-  procedure::diag=>diag_csr  
+  procedure::diagcol=>diagcol_csr  
+  procedure::diagrow=>diagrow_csr  
   procedure::sub=>subsparse_csr  
   procedure::print=>print_csr
   procedure::printfile=>printtofile_csr
@@ -103,7 +104,7 @@ function subsparse_csr(sparse,startrow,endrow,startcol,endcol)
  do i=startrow,endrow
   un=un+subsparse_csr%ia(nel)
   nel=nel+1
-  do j=sparse%ia(i),sparse%ia(nel)-1
+  do j=sparse%ia(i),sparse%ia(i+1)-1
     k=sparse%ja(j)
     if(k.ge.startcol.and.k.le.endcol)then
      subsparse_csr%ia(nel)=subsparse_csr%ia(nel)+1
@@ -142,22 +143,23 @@ subroutine printtofile_csr(sparse,un)
 
  do i=1,sparse%n
   do j=sparse%ia(i),sparse%ia(i+1)-1
-   write(un,'(i10,i10,f16.8)'),i,sparse%ja(j),sparse%a(j)
+   write(un,'(i13,i13,f16.8)')i,sparse%ja(j),sparse%a(j)
   enddo
  enddo
 
 end subroutine
 
-subroutine printtobin_csr(sparse,un)
+subroutine printtobin_csr(sparse,un,typesp)
  class(csr),intent(in)::sparse
  integer(kind=int4),intent(in)::un
+ character(len=*),intent(in)::typesp
 
  integer(kind=int4)::i,unin
  integer(kind=intnel)::j
  character(len=10)::cdummy
  
  write(cdummy,'(i0)')un
- open(newunit=unin,file='subpcg.'//adjustl(cdummy(:len_trim(cdummy))),action='write',access='stream',buffered='yes')
+ open(newunit=unin,file='subpcg.'//adjustl(typesp(:len_trim(typesp)))//adjustl(cdummy(:len_trim(cdummy))),action='write',access='stream',buffered='yes')
  write(unin)sparse%n,sparse%m,sparse%ia(sparse%n+1)-1
  write(unin)sparse%ia
  write(unin)sparse%ja
@@ -176,30 +178,53 @@ subroutine reset_csr(sparse)
 
 end subroutine
 
-function diag_csr(sparse,startcol)
- real(kind=real8),allocatable::diag_csr(:)
+function diagcol_csr(sparse,startcol)
+ real(kind=real8),allocatable::diagcol_csr(:)
  class(csr),intent(in)::sparse
  integer(kind=int4),intent(in)::startcol
  
  integer(kind=int4)::newn,newm
  integer(kind=int4)::i,j,k,un
- integer(kind=intnel)::nel
  
  write(*,'(/a,i0)')' Extraction of the diagonal elements from ',startcol
 
- allocate(diag_csr(sparse%m))
- diag_csr=0.d0
+ allocate(diagcol_csr(sparse%m))
+ diagcol_csr=0.d0
  newn=0
  do i=startcol,startcol+sparse%m-1
   do j=sparse%ia(i),sparse%ia(i+1)-1
    k=sparse%ja(j)
    if(k+startcol-1.eq.i)then
     newn=newn+1
-    diag_csr(newn)=sparse%a(j)
+    diagcol_csr(newn)=sparse%a(j)
    endif
   enddo
  enddo
 
 end function
 
+function diagrow_csr(sparse,startrow)
+ real(kind=real8),allocatable::diagrow_csr(:)
+ class(csr),intent(in)::sparse
+ integer(kind=int4),intent(in)::startrow
+ 
+ integer(kind=int4)::newn,newm
+ integer(kind=int4)::i,j,k,un
+ 
+ write(*,'(/a,i0)')' Extraction of the diagonal elements from ',startrow
+
+ allocate(diagrow_csr(sparse%n))
+ diagrow_csr=0.d0
+ newn=0
+ do i=1,sparse%n
+  do j=sparse%ia(i),sparse%ia(i+1)-1
+   k=sparse%ja(j)
+   if(k.eq.i+startrow-1)then
+    newn=newn+1
+    diagrow_csr(newn)=sparse%a(j)
+   endif
+  enddo
+ enddo
+
+end function
 end module

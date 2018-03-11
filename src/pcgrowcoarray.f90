@@ -1,12 +1,12 @@
-!ifort -O3 -heap-arrays -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -qopenmp -parallel -lpthread -coarray=distributed -coarray-num-images=3 pcgcoarray.f90 -o pcgcoarray
+!ifort -O3 -heap-arrays -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -qopenmp -parallel -lpthread -coarray=distributed -coarray-num-images=3 pcgrowcoarray.f90 -o pcgrowcoarray
 
-program  pcgcorray
+program  pcgrowcorray
  !$ use omp_lib
  use modkind
  use modsparse
  implicit none
- integer(kind=intc)::io,un,i,j,k,l,m,n,neq,ncol,iter
- integer(kind=int4)::startcolk,maxit=2000
+ integer(kind=intc)::io,un,i,j,k,l,m,n,neq,nrow,iter
+ integer(kind=int4)::startrowk,maxit=2000
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
  integer(kind=intnel)::nel
  character(len=80)::host,cdummy
@@ -14,8 +14,8 @@ program  pcgcorray
  real(kind=real8)::oldtau,conv,thr,beta
  real(kind=real8)::b_norm[*],resvec1[*],alpha[*],tau[*]
  real(kind=real8),allocatable::rhs(:),precond(:)
- real(kind=real8),allocatable::z(:),p(:)
- real(kind=real8),allocatable::r(:)[:],w(:)[:],x(:)[:]
+ real(kind=real8),allocatable::z(:),r(:),w(:)
+ real(kind=real8),allocatable::p(:)[:],x(:)[:]
  real(kind=real8)::t1,val
  type(csr)::sparse
 
@@ -25,7 +25,7 @@ program  pcgcorray
  sync all
 
  if(this_image().eq.1)then
-  open(newunit=un,file='param.pcgcoarray.col',status='old',action='read')
+  open(newunit=un,file='param.pcgcoarray.row',status='old',action='read')
   n=0
   do
    read(un,*,iostat=io)i,j,k,l,m
@@ -53,7 +53,7 @@ program  pcgcorray
  write(*,'(/a,i0)')' Reads the matrix from image ',this_image()
  write(cdummy,'(i0)')this_image()
 
- open(newunit=un,file='subpcg.col'//adjustl(cdummy(:len_trim(cdummy))),status='old',action='read',access='stream')
+ open(newunit=un,file='subpcg.row'//adjustl(cdummy(:len_trim(cdummy))),status='old',action='read',access='stream')
  read(un)i,j,nel
  call sparse%alloc(nel,i,j)
  
@@ -74,7 +74,7 @@ program  pcgcorray
 
  !read rhs
  write(*,*)"Image ",this_image()," starts to read the rhs"
- allocate(rhs(sparse%m))
+ allocate(rhs(sparse%n))
  rhs=0.d0
  open(newunit=un,file='rhs.bin',access='stream',action='read',status='old',buffered='yes')
  read(un)i
@@ -84,8 +84,8 @@ program  pcgcorray
   read(un,iostat=io)val
   if(io.ne.0)exit
   i=i+1
-  if(i.gt.endcol)exit
-  if(i.ge.startcol)then !.and.i.le.endcol)then
+  if(i.gt.endrow)exit
+  if(i.ge.startrow)then !.and.i.le.endrow)then
    j=j+1
    rhs(j)=val
   endif
@@ -97,12 +97,12 @@ program  pcgcorray
 
 
  write(*,*)' Preparation for the PCG...'
- neq=sparse%n
- ncol=sparse%m
+ neq=sparse%m
+ nrow=sparse%n
  !create preconditioner
- precond=sparse%diagcol(startcol)
+ precond=sparse%diagrow(startrow)
 
- do i=1,ncol
+ do i=1,nrow
   if(precond(i).ne.0)precond(i)=1.d0/precond(i)
  enddo
  
@@ -110,22 +110,22 @@ program  pcgcorray
  allocate(x(neq)[*])
  x=0.d0
 
- allocate(z(ncol),p(ncol))
- allocate(r(neq)[*],w(neq)[*])
+ allocate(z(nrow),w(nrow),r(nrow))
+ allocate(p(neq)[*])
  r=0.d0;p=0.d0;z=0.d0;w=0.d0
 
  oldtau=1.d0
 
  !initiatilisation of r
  if(sum(x).eq.0.d0)then
-  r(startcol:endcol)=rhs
+  r=rhs
  else
   print*,'not yet implemented'
   stop
  endif
 
- b_norm=norm(rhs,1,ncol)
- resvec1=norm(r,startcol,endcol)
+ b_norm=norm(rhs,1,nrow)
+ resvec1=norm(r,1,nrow)
 
  sync all
 
@@ -134,9 +134,6 @@ program  pcgcorray
  if(this_image().eq.1)then
   do i=2,num_images()
    !receives updates from other for its own image
-   j=startcol[i]
-   k=endcol[i]
-   r(j:k)=r(j:k)+r(j:k)[i]
    b_norm=b_norm+b_norm[i]
    resvec1=resvec1+resvec1[i]
   enddo
@@ -144,7 +141,6 @@ program  pcgcorray
  sync all
  !2. update on the other image
  if(this_image().ne.1)then
-  r(:)=r(:)[1]
   b_norm=b_norm[1]
   resvec1=resvec1[1]
  endif
@@ -163,17 +159,17 @@ program  pcgcorray
 
  !Start iteration
  !$ t1=omp_get_wtime() 
- startcolk=startcol-1
+ startrowk=startrow-1
  do while(resvec1.gt.thr.and.iter.le.maxit)
   !z=M*r
-  do i=1,ncol
-   z(i)=precond(i)*r(startcolk+i)
+  do i=1,nrow
+   z(i)=precond(i)*r(i)
   enddo
 
   !tau=z*r
   tau=0.d0
-  do i=1,ncol
-   tau=tau+z(i)*r(startcolk+i)
+  do i=1,nrow
+   tau=tau+z(i)*r(i)
   enddo
 
   !update tau
@@ -192,29 +188,35 @@ program  pcgcorray
   oldtau=tau
 
   !p=z+beta*p
-  do i=1,ncol
-   p(i)=z(i)+beta*p(i)
+  do i=startrow,endrow
+   p(i)=z(i-startrowk)+beta*p(i)
   enddo
 
-  !w=LHS*p
-  call multgenv(sparse,p,w)
- 
-  !update w
-  sync all
+  !update on all images
+  !1. update on image 1
   if(this_image().eq.1)then
    do i=2,num_images()
     !receives updates from other for its own image
-   w=w+w(:)[i]
+    j=startrow[i]
+    k=endrow[i]
+    p(j:k)=p(j:k)[i]
    enddo
   endif
   sync all
   !2. update on the other image
-  if(this_image().ne.1)w(:)=w(:)[1]
+  if(this_image().ne.1)then
+   p(:)=p(:)[1]
+  endif
+  sync all  !not sure if it is really needed
 
+
+  !w=LHS*p
+  call multgenv(sparse,p,w)
+ 
   !alpha=p*w
   alpha=0.d0
-  do i=1,ncol
-   alpha=alpha+p(i)*w(startcolk+i)
+  do i=1,nrow
+   alpha=alpha+p(startrowk+i)*w(i)
   enddo
 
   !update alpha
@@ -230,14 +232,26 @@ program  pcgcorray
   !2. update on the other image
   if(this_image().ne.1)alpha=alpha[1]
 
-  do i=1,ncol
-   x(startcolk+i)=x(startcolk+i)+alpha*p(i)
+  do i=startrow,endrow
+   x(i)=x(i)+alpha*p(i)
   enddo
 
-  do i=1,neq
+  do i=1,nrow
    r(i)=r(i)-alpha*w(i)
   enddo
-  resvec1=norm(r,1,neq)
+  resvec1=norm(r,1,nrow)
+
+  !update resvec1
+  sync all
+  if(this_image().eq.1)then
+   do i=2,num_images()
+    !receives updates from other for its own image
+    resvec1=resvec1+resvec1[i]
+   enddo
+  endif
+  sync all
+  !2. update on the other image
+  if(this_image().ne.1)resvec1=resvec1[1]
 
   conv=resvec1/b_norm
 
@@ -286,7 +300,7 @@ subroutine print_ascii(x,startpos,endpos)
 
  integer(kind=intc)::un
 
- open(newunit=un,file='solutions.pcgcoarray.col')
+ open(newunit=un,file='solutions.pcgcoarray.row')
  do i=startpos,endpos
   write(un,*)x(i)
  enddo

@@ -1,6 +1,6 @@
 !ifort -O3 -heap-arrays -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -qopenmp -parallel -lpthread  pcg.f90 -o pcg
 
-program  pcgcorray
+program  pcg
  !$ use omp_lib
  use modkind
  use modsparse
@@ -50,7 +50,7 @@ program  pcgcorray
  ncol=sparse%m
  endcol=sparse%m
  !create preconditioner
- precond=sparse%diag(startcol)
+ precond=sparse%diagcol(startcol)
  do i=1,ncol
   if(precond(i).ne.0)precond(i)=1.d0/precond(i)
  enddo
@@ -100,7 +100,7 @@ program  pcgcorray
    tau=tau+z(i)*r(startcolk+i)
   enddo
 
-
+!print*,'aaa',tau
   beta=tau/oldtau
   oldtau=tau
 
@@ -108,9 +108,13 @@ program  pcgcorray
   do i=1,ncol
    p(i)=z(i)+beta*p(i)
   enddo
+!print*,'bbb',tau,beta,p
+!stop
 
   !w=LHS*p
   call multgenv(sparse,p,w)
+!print*,'bbb',tau,beta,w
+!stop
 
   !alpha=p*w
   alpha=0.d0
@@ -119,6 +123,7 @@ program  pcgcorray
   enddo
 
   alpha=tau/alpha
+!print*,'ddd',alpha
 
   do i=1,ncol
    x(startcolk+i)=x(startcolk+i)+alpha*p(i)
