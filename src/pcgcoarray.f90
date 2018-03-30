@@ -6,7 +6,7 @@ program  pcgcorray
  use modsparse
  implicit none
  integer(kind=intc)::io,un,i,j,k,l,m,n,neq,ncol,iter
- integer(kind=int4)::startcolk,maxit=2000
+ integer(kind=int4)::startcolk,maxit=4000
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
  integer(kind=intnel)::nel
  character(len=80)::host,cdummy
@@ -20,7 +20,7 @@ program  pcgcorray
  type(csr)::sparse
 
  call get_environment_variable("HOSTNAME",value=host)
- write(*,*)"Hello from image ",this_image()," out of ",num_images()," total images on host",trim(host)
+ write(*,'(2(a,i0),a)')"Hello from image ",this_image()," out of ",num_images()," total images on host ",trim(host)
 
  sync all
 
@@ -261,7 +261,7 @@ program  pcgcorray
  endif
 
  sync all
- write(*,*)"End for image ",this_image()," out of ",num_images()," total images!"
+ write(*,'(2(a,i0),a)')"End for image ",this_image()," out of ",num_images()," total images!"
 
 contains
 
