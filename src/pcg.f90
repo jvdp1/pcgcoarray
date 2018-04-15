@@ -6,7 +6,7 @@ program  pcg
  use modsparse
  implicit none
  integer(kind=intc)::io,un,i,j,k,l,m,n,neq,ncol,iter
- integer(kind=int4)::startcolk,maxit=2000
+ integer(kind=int4)::startcolk,maxit=4000
  integer(kind=int4)::startrow,endrow,startcol,endcol
  integer(kind=intnel)::nel
  character(len=80)::host,cdummy
@@ -16,7 +16,7 @@ program  pcg
  real(kind=real8),allocatable::rhs(:),precond(:)
  real(kind=real8),allocatable::x(:),p(:),z(:)
  real(kind=real8),allocatable::r(:),w(:)
- real(kind=real8)::t1
+ real(kind=real8)::t1,val
  type(csr)::sparse
 
 
@@ -137,13 +137,14 @@ program  pcg
 
   conv=resvec1/b_norm
 
-  if(this_image().eq.1)then
-   write(*,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')iter,conv,resvec1
-  endif
+  write(*,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')iter,conv,resvec1
   iter=iter+1
  enddo
- !$ write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')omp_get_wtime()-t1
 
+ !$ val=omp_get_wtime()-t1
+ !$  write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')val
+ !$  write(*,'("  Approximate Wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
+ 
  call print_ascii(x,1,neq)
 
 !   write(*,*)i,'aaa',size(r(:)),'ccc',r(:)

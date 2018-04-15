@@ -20,7 +20,7 @@ program  pcgrowcorray
  type(csr)::sparse
 
  call get_environment_variable("HOSTNAME",value=host)
- write(*,'(2(a,i0),a)')"Hello from image ",this_image()," out of ",num_images()," total images on host ",trim(host)
+ write(*,'(2(a,i0),2a)')"Hello from image ",this_image()," out of ",num_images()," total images on host ",trim(host)
 
  sync all
 
@@ -193,20 +193,31 @@ program  pcgrowcorray
   enddo
 
   !update on all images
-  !1. update on image 1
-  if(this_image().eq.1)then
-   do i=2,num_images()
+!  !1. update on image 1
+!  if(this_image().eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    j=startrow[i]
+!    k=endrow[i]
+!    p(j:k)=p(j:k)[i]
+!   enddo
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(this_image().ne.1)then
+!   p(:)=p(:)[1]
+!  endif
+!  sync all  !not sure if it is really needed
+
+  sync all
+  do i=1,num_images()
+   if(i.ne.this_image())then
     !receives updates from other for its own image
     j=startrow[i]
     k=endrow[i]
     p(j:k)=p(j:k)[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(this_image().ne.1)then
-   p(:)=p(:)[1]
-  endif
+   endif
+  enddo
   sync all  !not sure if it is really needed
 
 
@@ -264,17 +275,24 @@ program  pcgrowcorray
   iter=iter+1
 
  enddo
- !$ if(this_image().eq.1)write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')omp_get_wtime()-t1
+ !$ if(this_image().eq.1)then
+ !$ val=omp_get_wtime()-t1
+ !$  write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')val
+ !$  write(*,'("  Approximate Wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
+ !$ endif
 
  sync all
+
  if(this_image().eq.1)then
   do i=2,num_images()
-   x=x+x(:)[i]
+   !receives updates from other for its own image
+   j=startrow[i]
+   k=endrow[i]
+   x(j:k)=x(j:k)+x(j:k)[i]
   enddo
   call print_ascii(x,1,neq)
  endif
 
- sync all
  write(*,'(2(a,i0),a)')"End for image ",this_image()," out of ",num_images()," total images!"
 
 contains
@@ -300,7 +318,14 @@ subroutine print_ascii(x,startpos,endpos)
 
  integer(kind=intc)::un
 
+#if (TOUTPUT==1)
+ open(newunit=un,file='solutions.pcgcoarray.row.dist')
+#elif (TOUTPUT==2)
+ open(newunit=un,file='solutions.pcgcoarray.row.shared')
+#else
  open(newunit=un,file='solutions.pcgcoarray.row')
+#endif
+
  do i=startpos,endpos
   write(un,*)x(i)
  enddo

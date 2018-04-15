@@ -6,16 +6,20 @@ F90FLAGSUB=
 coarraytype=
 coarray=
 
+toutput=0
+
 ifeq ($(COARRAYENABLE),dist)
  coarray=coarray
  coarraytype=.dist
  F90FLAGSUB=-coarray=distributed
+ toutput=1
 endif
 
 ifeq ($(COARRAYENABLE),shared)
  coarray=coarray
  coarraytype=.shared
  F90FLAGSUB=-coarray=shared -coarray-num-images=4
+ toutput=2
 endif
 
 DEBUG=
@@ -46,7 +50,7 @@ pcgrow$(coarray): modkind.o modsparse.o pcgrow$(coarray).o
 	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(LDFLAGS) $(DEBUG) $^ -o $@$(coarraytype)$(debugext)
 
 %.o: %.f90
-	$(F90) -c $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) $< -o $@
+	$(F90) -c $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) $< -o $@
 
 cleanlib:
 	rm -rf *.o *.mod
