@@ -5,103 +5,49 @@ program  pcgcorray
  use modkind
  use modsparse
  implicit none
- integer(kind=intc)::io,un,i,j,k,l,m,n,neq,ncol,iter
+ integer(kind=intc)::i,j,k,l,m,n,neq,ncol,iter
  integer(kind=int4)::startcolk,maxit=4000
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
  integer(kind=intnel)::nel
- character(len=80)::host,cdummy
+ character(len=80)::host
  real(kind=real8)::tol=1.e-12
  real(kind=real8)::oldtau,conv,thr,beta
  real(kind=real8)::b_norm[*],resvec1[*],alpha[*],tau[*]
  real(kind=real8),allocatable::rhs(:),precond(:)
  real(kind=real8),allocatable::z(:),p(:)
- real(kind=real8),allocatable::r(:)[:],w(:)[:],x(:)[:]
+ real(kind=real8),allocatable::x(:)[:],r(:)[:],w(:)[:]
  real(kind=real8)::t1,val
  type(csr)::sparse
 
  call get_environment_variable("HOSTNAME",value=host)
  write(*,'(2(a,i0),2a)')"Hello from image ",this_image()," out of ",num_images()," total images on host ",trim(host)
 
- sync all
-
+ !read the parameter file on image 1
  if(this_image().eq.1)then
-  open(newunit=un,file='param.pcgcoarray.col',status='old',action='read')
-  n=0
-  do
-   read(un,*,iostat=io)i,j,k,l,m
-   if(io.ne.0)exit
-   n=n+1
-   if(n.gt.num_images())then
-    write(*,'(a)')' The parameter file is not correct!'
-    stop
-   endif
-   startrow[i]=j
-   endrow[i]=k
-   startcol[i]=l
-   endcol[i]=m
-  enddo
-  close(un)
-  if(n.ne.num_images())then
-   write(*,'(a)')' The parameter file is not correct!'
-   stop
-  endif
+  call readparam(startrow,endrow,startcol,endcol)
  endif
 
  sync all
 
  !Reads the matrix
- write(*,'(/a,i0)')' Reads the matrix from image ',this_image()
- write(cdummy,'(i0)')this_image()
-
- open(newunit=un,file='subpcg.col'//adjustl(cdummy(:len_trim(cdummy))),status='old',action='read',access='stream')
- read(un)i,j,nel
- call sparse%alloc(nel,i,j)
- 
- read(un)sparse%ia
- print*,'read ia'
- read(un)sparse%ja
- print*,'read ja'
- read(un)sparse%a
- print*,'read a'
- close(un)
-
-
- write(*,'(a,i0/)')' End of reading the matrix from image ',this_image()
+ call readmatrix(sparse)
 
  !call sparse%printfile(600+this_image())
 
  !sync all
 
  !read rhs
- write(*,*)"Image ",this_image()," starts to read the rhs"
  allocate(rhs(sparse%m))
- rhs=0.d0
- open(newunit=un,file='rhs.bin',access='stream',action='read',status='old',buffered='yes')
- read(un)i
- i=0
- j=0
- do
-  read(un,iostat=io)val
-  if(io.ne.0)exit
-  i=i+1
-  if(i.gt.endcol)exit
-  if(i.ge.startcol)then !.and.i.le.endcol)then
-   j=j+1
-   rhs(j)=val
-  endif
- enddo
- close(un)
- !write(*,*)"Hello from image ",this_image(),'aaa',rhs
+ call readrhs(rhs,startrow,endrow)
 
- !sync all
-
-
- write(*,*)' Preparation for the PCG...'
+ write(*,'(a,i0)')' Preparation for the PCG for image ',this_image()
  neq=sparse%n
  ncol=sparse%m
+
  !create preconditioner
  precond=sparse%diagcol(startcol)
 
+ !invert preconditioner
  do i=1,ncol
   if(precond(i).ne.0)precond(i)=1.d0/precond(i)
  enddo
@@ -121,7 +67,7 @@ program  pcgcorray
   r(startcol:endcol)=rhs
  else
   print*,'not yet implemented'
-  stop
+  error stop
  endif
 
  b_norm=norm(rhs,1,ncol)
@@ -241,7 +187,6 @@ program  pcgcorray
 
   conv=resvec1/b_norm
 
-!  sync all
 
   if(this_image().eq.1)then
    write(*,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')iter,conv,resvec1
@@ -272,6 +217,84 @@ program  pcgcorray
 
 contains
 
+subroutine readparam(startrow,endrow,startcol,endcol)
+ integer(kind=int4),intent(inout)::startrow[*],endrow[*],startcol[*],endcol[*]
+
+ integer(kind=int4)::io,un,i,j,k,l,m,n
+
+ open(newunit=un,file='param.pcgcoarray.col',status='old',action='read')
+ n=0
+ do
+  read(un,*,iostat=io)i,j,k,l,m
+  if(io.ne.0)exit
+  n=n+1
+  if(n.gt.num_images())then
+   write(*,'(a)')' The parameter file is not correct!'
+   error stop
+  endif
+  startrow[i]=j
+  endrow[i]=k
+  startcol[i]=l
+  endcol[i]=m
+ enddo
+ close(un)
+ if(n.ne.num_images())then
+  write(*,'(a)')' The parameter file is not correct!'
+  error stop
+ endif
+
+end subroutine
+
+subroutine readmatrix(sparse)
+ type(csr),intent(inout)::sparse
+
+ integer(kind=int4)::i,j,nel,un
+ character(len=80)::cdummy
+
+ write(*,'(/a,i0)')' Reads the matrix from image ',this_image()
+ write(cdummy,'(i0)')this_image()
+
+ open(newunit=un,file='subpcg.col'//adjustl(cdummy(:len_trim(cdummy))),status='old',action='read',access='stream')
+ read(un)i,j,nel
+ call sparse%alloc(nel,i,j)
+ 
+ read(un)sparse%ia
+ read(un)sparse%ja
+ read(un)sparse%a
+ close(un)
+
+ write(*,'(a,i0/)')' End of reading the matrix from image ',this_image()
+
+end subroutine
+
+subroutine readrhs(rhs,startcol,endcol)
+ !stupid to read a vector like that, but it works
+ integer(kind=int4),intent(in)::startcol,endcol
+ real(kind=real8),intent(inout)::rhs(:)
+
+ integer(kind=int4)::i,j,io,un
+ real(kind=real8)::val
+
+ write(*,'(a,i0,a)')" Image ",this_image()," starts to read the rhs"
+ rhs=0.d0
+ open(newunit=un,file='rhs.bin',access='stream',action='read',status='old',buffered='yes')
+ read(un)i
+ i=0
+ j=0
+ do
+  read(un,iostat=io)val
+  if(io.ne.0)exit
+  i=i+1
+  if(i.gt.endcol)exit
+  if(i.ge.startcol)then !.and.i.le.endcol)then
+   j=j+1
+   rhs(j)=val
+  endif
+ enddo
+ close(un)
+
+end subroutine
+
 subroutine multgenv(A,x,y)
  !Computes y=0.d0*y+A*x
  type(csr),intent(in)::A
@@ -293,6 +316,8 @@ subroutine print_ascii(x,startpos,endpos)
 
  integer(kind=intc)::un
 
+ write(*,'(a,i0,a)')" Image ",this_image()," starts to write the solutions!"
+
 #if (TOUTPUT==1)
  open(newunit=un,file='solutions.pcgcoarray.row.dist')
 #elif (TOUTPUT==2)
@@ -305,6 +330,7 @@ subroutine print_ascii(x,startpos,endpos)
   write(un,*)x(i)
  enddo
  close(un)
+
 end subroutine
 
 function norm(vector,starteq,endeq)
