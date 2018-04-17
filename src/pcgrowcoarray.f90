@@ -19,6 +19,10 @@ program  pcgrowcorray
  real(kind=real8)::t1,val
  type(csr)::sparse
 
+ if(this_image().eq.1)then
+  write(*,'(/a/)')' PCG solver with a LHS divided by rows...'
+ endif
+
  call get_environment_variable("HOSTNAME",value=host)
  write(*,'(2(a,i0),2a)')"Hello from image ",this_image()," out of ",num_images()," total images on host ",trim(host)
 
@@ -216,8 +220,10 @@ program  pcgrowcorray
    k=endrow[i]
    x(j:k)=x(j:k)+x(j:k)[i]
   enddo
-  call print_ascii(x,1,neq)
  endif
+ sync all
+ if(this_image().eq.1)call print_ascii(x,1,neq)
+
 
  write(*,'(2(a,i0),a)')"End for image ",this_image()," out of ",num_images()," total images!"
 

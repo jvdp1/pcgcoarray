@@ -15,9 +15,13 @@ program  pcgcorray
  real(kind=real8)::b_norm[*],resvec1[*],alpha[*],tau[*]
  real(kind=real8),allocatable::rhs(:),precond(:)
  real(kind=real8),allocatable::z(:),p(:)
- real(kind=real8),allocatable::x(:)[:],r(:)[:],w(:)[:]
+ real(kind=real8),allocatable::x(:)[:],r(:)[:],w(:)[:],wtmp(:)[:]
  real(kind=real8)::t1,val
  type(csr)::sparse
+
+ if(this_image().eq.1)then
+  write(*,'(/a/)')' PCG solver with a LHS divided by columns...'
+ endif
 
  call get_environment_variable("HOSTNAME",value=host)
  write(*,'(2(a,i0),2a)')"Hello from image ",this_image()," out of ",num_images()," total images on host ",trim(host)
@@ -38,7 +42,7 @@ program  pcgcorray
 
  !read rhs
  allocate(rhs(sparse%m))
- call readrhs(rhs,startrow,endrow)
+ call readrhs(rhs,startcol,endcol)
 
  write(*,'(a,i0)')' Preparation for the PCG for image ',this_image()
  neq=sparse%n
@@ -59,6 +63,8 @@ program  pcgcorray
  allocate(z(ncol),p(ncol))
  allocate(r(neq)[*],w(neq)[*])
  r=0.d0;p=0.d0;z=0.d0;w=0.d0
+ allocate(wtmp(neq)[*])
+ wtmp=0.d0
 
  oldtau=1.d0
 
@@ -80,9 +86,6 @@ program  pcgcorray
  if(this_image().eq.1)then
   do i=2,num_images()
    !receives updates from other for its own image
-   j=startcol[i]
-   k=endcol[i]
-   r(j:k)=r(j:k)+r(j:k)[i]
    b_norm=b_norm+b_norm[i]
    resvec1=resvec1+resvec1[i]
   enddo
@@ -90,10 +93,18 @@ program  pcgcorray
  sync all
  !2. update on the other image
  if(this_image().ne.1)then
-  r(:)=r(:)[1]
   b_norm=b_norm[1]
   resvec1=resvec1[1]
  endif
+ !sync all  !not sure if it is really needed
+ do i=1,num_images()
+  if(i.ne.this_image())then
+   !receives updates from other for its own image
+   j=startcol[i]
+   k=endcol[i]
+   r(j:k)=r(j:k)+r(j:k)[i]
+  endif
+ enddo
  sync all  !not sure if it is really needed
 
  conv=resvec1/b_norm
@@ -146,16 +157,22 @@ program  pcgcorray
   call multgenv(sparse,p,w)
  
   !update w
+  !For some reasons, there is an issue when updating w as a full array and 1
+  !image per node (but not when all the images are on the same node)
+  !Issue solved by updating parts of array w
+  wtmp=w
   sync all
-  if(this_image().eq.1)then
-   do i=2,num_images()
+  do i=1,num_images()
+   if(i.ne.this_image())then
     !receives updates from other for its own image
-   w=w+w(:)[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(this_image().ne.1)w(:)=w(:)[1]
+    !w=w+wtmp(:)[i]
+    do m=1,num_images()
+     j=startcol[m]
+     k=endcol[m]
+     w(j:k)=w(j:k)+wtmp(j:k)[i]
+    enddo
+   endif
+  enddo
 
   !alpha=p*w
   alpha=0.d0
@@ -206,12 +223,14 @@ program  pcgcorray
  if(this_image().eq.1)then
   do i=2,num_images()
    !receives updates from other for its own image
-   j=startrow[i]
-   k=endrow[i]
+   j=startcol[i]
+   k=endcol[i]
    x(j:k)=x(j:k)+x(j:k)[i]
   enddo
-  call print_ascii(x,1,neq)
  endif
+ sync all
+ if(this_image().eq.1)call print_ascii(x,1,neq)
+
 
  write(*,'(2(a,i0),a)')"End for image ",this_image()," out of ",num_images()," total images!"
 
@@ -319,11 +338,11 @@ subroutine print_ascii(x,startpos,endpos)
  write(*,'(a,i0,a)')" Image ",this_image()," starts to write the solutions!"
 
 #if (TOUTPUT==1)
- open(newunit=un,file='solutions.pcgcoarray.row.dist')
+ open(newunit=un,file='solutions.pcgcoarray.col.dist')
 #elif (TOUTPUT==2)
- open(newunit=un,file='solutions.pcgcoarray.row.shared')
+ open(newunit=un,file='solutions.pcgcoarray.col.shared')
 #else
- open(newunit=un,file='solutions.pcgcoarray.row')
+ open(newunit=un,file='solutions.pcgcoarray.col')
 #endif
 
  do i=startpos,endpos
