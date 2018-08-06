@@ -15,7 +15,7 @@ program  pcgcorray
  real(kind=real8)::b_norm[*],resvec1[*],alpha[*],tau[*]
  real(kind=real8),allocatable::rhs(:),precond(:)
  real(kind=real8),allocatable::z(:),p(:)
- real(kind=real8),allocatable::x(:)[:],r(:)[:],w(:)[:],wtmp(:)[:]
+ real(kind=real8),allocatable::x(:)[:],r(:)[:],w(:)[:]
  real(kind=real8)::t1,val
  type(csr)::sparse
 
@@ -63,8 +63,6 @@ program  pcgcorray
  allocate(z(ncol),p(ncol))
  allocate(r(neq)[*],w(neq)[*])
  r=0.d0;p=0.d0;z=0.d0;w=0.d0
- allocate(wtmp(neq)[*])
- wtmp=0.d0
 
  oldtau=1.d0
 
@@ -157,22 +155,16 @@ program  pcgcorray
   call multgenv(sparse,p,w)
  
   !update w
-  !For some reasons, there is an issue when updating w as a full array and 1
-  !image per node (but not when all the images are on the same node)
-  !Issue solved by updating parts of array w
-  wtmp=w
   sync all
-  do i=1,num_images()
-   if(i.ne.this_image())then
+  if(this_image().eq.1)then
+   do i=2,num_images()
     !receives updates from other for its own image
-    !w=w+wtmp(:)[i]
-    do m=1,num_images()
-     j=startcol[m]
-     k=endcol[m]
-     w(j:k)=w(j:k)+wtmp(j:k)[i]
-    enddo
-   endif
-  enddo
+   w=w+w(:)[i]
+   enddo
+  endif
+  sync all
+  !2. update on the other image
+  if(this_image().ne.1)w(:)=w(:)[1]
 
   !alpha=p*w
   alpha=0.d0
