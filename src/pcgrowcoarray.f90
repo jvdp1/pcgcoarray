@@ -30,7 +30,7 @@ program  pcgrowcorray
  !endif
 
  call get_environment_variable("HOSTNAME",value=host)
- write(unlog,'(2(a,i0),2a)')"Hello from image ",thisimage," out of ",num_images()," total images on host ",trim(host)
+ write(unlog,'(2(a,i0),2a)')" Hello from image ",thisimage," out of ",num_images()," total images on host ",trim(host)
 
  !read the parameter file on image 1
  if(thisimage.eq.1)then
@@ -104,7 +104,9 @@ program  pcgrowcorray
 
  conv=resvec1/b_norm
 
- write(unlog,'(a,e15.5)')' Norm of RHS: ',b_norm
+ write(unlog,'(/a,i0)')' Start iterating for image ',thisimage
+
+ write(unlog,'(/a,e15.5)')' Norm of RHS: ',b_norm
  if(thisimage.eq.1)then
   open(newunit=unconv,file='convergence.dat',status='replace',action='write')
   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')1,conv,0.
@@ -232,8 +234,8 @@ program  pcgrowcorray
  if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
 
 
- write(unlog,'(/2(a,i0),a)')"End for image ",thisimage," out of ",num_images()," total images!"
- !$ write(unlog,'(/"  Wall clock time: ",f12.2)')omp_get_wtime()-t2
+ write(unlog,'(/2(a,i0),a)')" End for image ",thisimage," out of ",num_images()," total images!"
+ !$ write(unlog,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
 
  close(unlog)
  if(thisimage.eq.1)close(unconv)

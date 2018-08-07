@@ -1,5 +1,3 @@
-!ifort -O3 -heap-arrays -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -qopenmp -parallel -lpthread  pcg.f90 -o pcg
-
 program  pcg
  !$ use omp_lib
  use modkind
@@ -16,9 +14,10 @@ program  pcg
  real(kind=real8),allocatable::rhs(:),precond(:)
  real(kind=real8),allocatable::x(:),p(:),z(:)
  real(kind=real8),allocatable::r(:),w(:)
- real(kind=real8)::t1,val
+ !$ real(kind=real8)::t1,t2,val
  type(csr)::sparse
 
+ !$ t2=omp_get_wtime() 
 
  startcol=1
  !Reads the matrix
@@ -45,7 +44,7 @@ program  pcg
  read(un)i
  read(un)rhs
 
- write(*,*)' Preparation for the PCG...'
+ write(*,'(/a)')' Preparation for the PCG...'
  neq=sparse%n
  ncol=sparse%m
  endcol=sparse%m
@@ -78,8 +77,8 @@ program  pcg
 
  conv=resvec1/b_norm
 
-  write(*,'(a,e15.5)')' Norm of RHS: ',b_norm
-  write(*,'(" Iteration ",i6," Convergence = ",e12.5)')1,conv
+  write(*,'(/a,e15.5)')' Norm of RHS: ',b_norm
+  write(*,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')1,conv,0
 
  alpha=1.d0
  iter=2
@@ -142,8 +141,8 @@ program  pcg
  enddo
 
  !$ val=omp_get_wtime()-t1
- !$  write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')val
- !$  write(*,'("  Approximate Wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
+ !$  write(*,'(/"  Wall clock time for the iterative process (seconds): ",f12.2)')val
+ !$  write(*,'("  Approximate wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
  
  call print_ascii(x,1,neq)
 
@@ -151,6 +150,8 @@ program  pcg
 !   write(*,*)i,'aaa',b_norm
 !   write(*,*)i,'aaa',x
 
+ write(*,'(/a)')" End of the program"
+ !$ write(*,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
 
 contains
 
