@@ -15,8 +15,10 @@ program  pcgrowcorray
  real(kind=real8),allocatable::rhs(:),precond(:)
  real(kind=real8),allocatable::z(:),r(:),w(:)
  real(kind=real8),allocatable::x(:)[:],p(:)[:]
- real(kind=real8)::t1,val
+ !$ real(kind=real8)::t1,t2,val
  type(csr)::sparse
+
+ !$ t2=omp_get_wtime() 
 
  thisimage=this_image()
 
@@ -212,8 +214,8 @@ program  pcgrowcorray
  enddo
  !$ if(thisimage.eq.1)then
  !$ val=omp_get_wtime()-t1
- !$  write(unlog,'("  Wall clock time for the iterative process (seconds): ",f12.2)')val
- !$  write(unlog,'("  Approximate Wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
+ !$  write(unlog,'(/"  Wall clock time for the iterative process (seconds): ",f12.2)')val
+ !$  write(unlog,'("  Approximate wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
  !$ endif
 
  sync all
@@ -231,6 +233,7 @@ program  pcgrowcorray
 
 
  write(unlog,'(/2(a,i0),a)')"End for image ",thisimage," out of ",num_images()," total images!"
+ !$ write(unlog,'(/"  Wall clock time: ",f12.2)')omp_get_wtime()-t2
 
  close(unlog)
  if(thisimage.eq.1)close(unconv)
