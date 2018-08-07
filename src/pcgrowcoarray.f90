@@ -3,12 +3,12 @@ program  pcgrowcorray
  use modkind
  use modsparse
  implicit none
- integer(kind=intc)::thisimage
+ integer(kind=intc)::thisimage,unlog,unconv
  integer(kind=intc)::i,j,k,l,m,n,neq,nrow,iter
  integer(kind=int4)::startrowk,maxit=4000
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
  integer(kind=intnel)::nel
- character(len=80)::host
+ character(len=80)::host,cdummy
  real(kind=real8)::tol=1.e-12
  real(kind=real8)::oldtau,conv,thr,beta
  real(kind=real8)::b_norm[*],resvec1[*],alpha[*],tau[*]
@@ -20,22 +20,25 @@ program  pcgrowcorray
 
  thisimage=this_image()
 
- if(thisimage.eq.1)then
-  write(*,'(/a/)')' PCG solver with a LHS divided by rows...'
- endif
+ write(cdummy,'(i4)')thisimage
+ open(newunit=unlog,file='log.pcgrow.'//adjustl(cdummy(:len_trim(cdummy))),action='write',status='replace')
+
+ !if(thisimage.eq.1)then
+  write(unlog,'(/a/)')' PCG solver with a LHS divided by rows...'
+ !endif
 
  call get_environment_variable("HOSTNAME",value=host)
- write(*,'(2(a,i0),2a)')"Hello from image ",thisimage," out of ",num_images()," total images on host ",trim(host)
+ write(unlog,'(2(a,i0),2a)')"Hello from image ",thisimage," out of ",num_images()," total images on host ",trim(host)
 
  !read the parameter file on image 1
  if(thisimage.eq.1)then
-  call readparam(startrow,endrow,startcol,endcol)
+  call readparam(startrow,endrow,startcol,endcol,unlog)
  endif
 
  sync all
 
  !Reads the matrix
- call readmatrix(sparse)
+ call readmatrix(sparse,unlog)
 
  !call sparse%printfile(600+thisimage)
 
@@ -43,9 +46,9 @@ program  pcgrowcorray
 
  !read rhs
  allocate(rhs(sparse%n))
- call readrhs(rhs,startrow,endrow)
+ call readrhs(rhs,startrow,endrow,unlog)
 
- write(*,'(a,i0)')' Preparation for the PCG for image ',thisimage
+ write(unlog,'(a,i0)')' Preparation for the PCG for image ',thisimage
  neq=sparse%m
  nrow=sparse%n
 
@@ -99,9 +102,10 @@ program  pcgrowcorray
 
  conv=resvec1/b_norm
 
+ write(unlog,'(a,e15.5)')' Norm of RHS: ',b_norm
  if(thisimage.eq.1)then
-  write(*,'(a,e15.5)')' Norm of RHS: ',b_norm
-  write(*,'(" Iteration ",i6," Convergence = ",e12.5)')1,conv
+  open(newunit=unconv,file='convergence.dat',status='replace',action='write')
+  write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')1,conv,0.
  endif
 
  alpha=1.d0
@@ -200,7 +204,7 @@ program  pcgrowcorray
   conv=resvec1/b_norm
 
   if(thisimage.eq.1)then
-   write(*,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')iter,conv,resvec1
+   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')iter,conv,resvec1
   endif
 
   iter=iter+1
@@ -208,8 +212,8 @@ program  pcgrowcorray
  enddo
  !$ if(thisimage.eq.1)then
  !$ val=omp_get_wtime()-t1
- !$  write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')val
- !$  write(*,'("  Approximate Wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
+ !$  write(unlog,'("  Wall clock time for the iterative process (seconds): ",f12.2)')val
+ !$  write(unlog,'("  Approximate Wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
  !$ endif
 
  sync all
@@ -223,14 +227,18 @@ program  pcgrowcorray
   enddo
  endif
  sync all
- if(thisimage.eq.1)call print_ascii(x,1,neq)
+ if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
 
 
- write(*,'(2(a,i0),a)')"End for image ",thisimage," out of ",num_images()," total images!"
+ write(unlog,'(/2(a,i0),a)')"End for image ",thisimage," out of ",num_images()," total images!"
+
+ close(unlog)
+ if(thisimage.eq.1)close(unconv)
 
 contains
 
-subroutine readparam(startrow,endrow,startcol,endcol)
+subroutine readparam(startrow,endrow,startcol,endcol,unlog)
+ integer(kind=int4),intent(in)::unlog
  integer(kind=int4),intent(inout)::startrow[*],endrow[*],startcol[*],endcol[*]
 
  integer(kind=int4)::io,un,i,j,k,l,m,n
@@ -242,7 +250,7 @@ subroutine readparam(startrow,endrow,startcol,endcol)
   if(io.ne.0)exit
   n=n+1
   if(n.gt.num_images())then
-   write(*,'(a)')' The parameter file is not correct!'
+   write(unlog,'(a)')' The parameter file is not correct!'
    error stop
   endif
   startrow[i]=j
@@ -252,43 +260,44 @@ subroutine readparam(startrow,endrow,startcol,endcol)
  enddo
  close(un)
  if(n.ne.num_images())then
-  write(*,'(a)')' The parameter file is not correct!'
+  write(unlog,'(a)')' The parameter file is not correct!'
   error stop
  endif
 
 end subroutine
 
-subroutine readmatrix(sparse)
+subroutine readmatrix(sparse,unlog)
  type(csr),intent(inout)::sparse
+ integer(kind=int4),intent(in)::unlog
 
  integer(kind=int4)::i,j,nel,un
  character(len=80)::cdummy
 
- write(*,'(/a,i0)')' Reads the matrix from image ',this_image()
+ write(unlog,'(/a,i0)')' Reads the matrix from image ',this_image()
  write(cdummy,'(i0)')this_image()
 
  open(newunit=un,file='subpcg.row'//adjustl(cdummy(:len_trim(cdummy))),status='old',action='read',access='stream')
  read(un)i,j,nel
- call sparse%alloc(nel,i,j)
+ call sparse%alloc(nel,i,j,unlog=unlog)
  
  read(un)sparse%ia
  read(un)sparse%ja
  read(un)sparse%a
  close(un)
 
- write(*,'(a,i0/)')' End of reading the matrix from image ',this_image()
+ write(unlog,'(a,i0/)')' End of reading the matrix from image ',this_image()
 
 end subroutine
 
-subroutine readrhs(rhs,startrow,endrow)
+subroutine readrhs(rhs,startrow,endrow,unlog)
  !stupid to read a vector like that, but it works
- integer(kind=int4),intent(in)::startrow,endrow
+ integer(kind=int4),intent(in)::startrow,endrow,unlog
  real(kind=real8),intent(inout)::rhs(:)
 
  integer(kind=int4)::i,j,io,un
  real(kind=real8)::val
 
- write(*,'(a,i0,a)')" Image ",this_image()," starts to read the rhs"
+ write(unlog,'(a,i0,a)')" Image ",this_image()," starts to read the rhs"
  rhs=0.d0
  open(newunit=un,file='rhs.bin',access='stream',action='read',status='old',buffered='yes')
  read(un)i
@@ -323,13 +332,13 @@ subroutine multgenv(A,x,y)
  
 end subroutine
 
-subroutine print_ascii(x,startpos,endpos)
- integer(kind=intc),intent(in)::startpos,endpos
+subroutine print_ascii(x,startpos,endpos,unlog)
+ integer(kind=intc),intent(in)::startpos,endpos,unlog
  real(kind=real8),intent(in)::x(:)
 
  integer(kind=intc)::un
 
- write(*,'(a,i0,a)')" Image ",this_image()," starts to write the solutions!"
+ write(unlog,'(a,i0,a)')" Image ",this_image()," starts to write the solutions!"
 
 #if (TOUTPUT==1)
  open(newunit=un,file='solutions.pcgcoarray.row.dist')

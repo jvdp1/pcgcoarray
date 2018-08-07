@@ -5,10 +5,13 @@ module modsparse
  public::coo,csr
 
  type::sparse
+  integer(kind=int4),private::unlog=6
   integer(kind=int4)::n,m      !size of the matrix
   integer(kind=intnel),allocatable::ia(:)
   integer(kind=int4),allocatable::ja(:)
   real(kind=real8),allocatable::a(:)
+  contains
+   procedure::setoutputunit
  end type
 
  type,extends(sparse)::coo
@@ -33,11 +36,20 @@ module modsparse
 
 contains
 
-subroutine alloc_coo(sparse,nel,n,m)
+subroutine setoutputunit(sparsee,un)
+ class(sparse),intent(inout)::sparsee
+ integer(kind=int4)::un
+
+ sparsee%unlog=un
+
+end subroutine
+
+subroutine alloc_coo(sparse,nel,n,m,unlog)
  class(coo),intent(inout)::sparse
  integer(kind=intnel),intent(in)::nel
  integer(kind=int4),intent(in)::n
  integer(kind=int4),intent(in),optional::m
+ integer(kind=int4),intent(in),optional::unlog
 
  sparse%nel=nel
  sparse%n=n
@@ -47,13 +59,14 @@ subroutine alloc_coo(sparse,nel,n,m)
  sparse%ia=0
  sparse%ja=0
  sparse%a=0.d0
+ if(present(unlog))call sparse%setoutputunit(unlog)
 end subroutine
  
-subroutine alloc_csr(sparse,nel,n,m)
+subroutine alloc_csr(sparse,nel,n,m,unlog)
  class(csr),intent(inout)::sparse
  integer(kind=intnel),intent(in)::nel
  integer(kind=int4),intent(in)::n
- integer(kind=int4),intent(in),optional::m
+ integer(kind=int4),intent(in),optional::m,unlog
 
  sparse%n=n
  sparse%m=n
@@ -64,8 +77,9 @@ subroutine alloc_csr(sparse,nel,n,m)
  sparse%ia(sparse%sizeia)=nel+1
  sparse%ja=0
  sparse%a=0.d0
- write(*,'(/a,i0,a,i0)')' Size of the sparse matrix          : ',sparse%n, ' x ',sparse%m
- write(*,'(a,i0)')' Number of elements in sparse matrix: ',sparse%ia(sparse%sizeia)-1
+ if(present(unlog))call sparse%setoutputunit(unlog)
+ write(sparse%unlog,'(/a,i0,a,i0)')' Size of the sparse matrix          : ',sparse%n, ' x ',sparse%m
+ write(sparse%unlog,'(a,i0)')' Number of elements in sparse matrix: ',sparse%ia(sparse%sizeia)-1
 end subroutine
  
 function subsparse_csr(sparse,startrow,endrow,startcol,endcol)
@@ -78,8 +92,8 @@ function subsparse_csr(sparse,startrow,endrow,startcol,endcol)
  integer(kind=intnel)::nel
  
 
- write(*,'(/a,i0,a,i0)')' Extraction of the rows from ',startrow,' to ',endrow
- write(*,'(a,i0,a,i0/)')' Extraction of the columns from ',startcol,' to ',endcol
+ write(sparse%unlog,'(/a,i0,a,i0)')' Extraction of the rows from ',startrow,' to ',endrow
+ write(sparse%unlog,'(a,i0,a,i0/)')' Extraction of the columns from ',startcol,' to ',endcol
 
  newn=endrow-startrow+1
  newm=endcol-startcol+1
@@ -128,7 +142,7 @@ subroutine print_csr(sparse)
 
  do i=1,sparse%n
   do j=sparse%ia(i),sparse%ia(i+1)-1
-   write(*,'(i10,i10,f16.8)'),i,sparse%ja(j),sparse%a(j)
+   write(sparse%unlog,'(i10,i10,f16.8)'),i,sparse%ja(j),sparse%a(j)
   enddo
  enddo
 
@@ -186,7 +200,7 @@ function diagcol_csr(sparse,startcol)
  integer(kind=int4)::newn,newm
  integer(kind=int4)::i,j,k,un
  
- write(*,'(/a,i0)')' Extraction of the diagonal elements from ',startcol
+ write(sparse%unlog,'(/a,i0)')' Extraction of the diagonal elements from ',startcol
 
  allocate(diagcol_csr(sparse%m))
  diagcol_csr=0.d0
@@ -211,7 +225,7 @@ function diagrow_csr(sparse,startrow)
  integer(kind=int4)::newn,newm
  integer(kind=int4)::i,j,k,un
  
- write(*,'(/a,i0)')' Extraction of the diagonal elements from ',startrow
+ write(sparse%unlog,'(/a,i0)')' Extraction of the diagonal elements from ',startrow
 
  allocate(diagrow_csr(sparse%n))
  diagrow_csr=0.d0

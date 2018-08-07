@@ -1,10 +1,9 @@
-!ifort -O3 -heap-arrays -lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -qopenmp -parallel -lpthread -coarray=distributed -coarray-num-images=3 pcgcoarray.f90 -o pcgcoarray
-
 program  pcgcorray
  !$ use omp_lib
  use modkind
  use modsparse
  implicit none
+ integer(kind=intc)::thisimage
  integer(kind=intc)::i,j,k,l,m,n,neq,ncol,iter
  integer(kind=int4)::startcolk,maxit=4000
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
@@ -19,15 +18,17 @@ program  pcgcorray
  real(kind=real8)::t1,val
  type(csr)::sparse
 
- if(this_image().eq.1)then
+ thisimage=this_image()
+
+ if(thisimage.eq.1)then
   write(*,'(/a/)')' PCG solver with a LHS divided by columns...'
  endif
 
  call get_environment_variable("HOSTNAME",value=host)
- write(*,'(2(a,i0),2a)')"Hello from image ",this_image()," out of ",num_images()," total images on host ",trim(host)
+ write(*,'(2(a,i0),2a)')"Hello from image ",thisimage," out of ",num_images()," total images on host ",trim(host)
 
  !read the parameter file on image 1
- if(this_image().eq.1)then
+ if(thisimage.eq.1)then
   call readparam(startrow,endrow,startcol,endcol)
  endif
 
@@ -36,7 +37,7 @@ program  pcgcorray
  !Reads the matrix
  call readmatrix(sparse)
 
- !call sparse%printfile(600+this_image())
+ !call sparse%printfile(600+thisimage)
 
  !sync all
 
@@ -44,7 +45,7 @@ program  pcgcorray
  allocate(rhs(sparse%m))
  call readrhs(rhs,startcol,endcol)
 
- write(*,'(a,i0)')' Preparation for the PCG for image ',this_image()
+ write(*,'(a,i0)')' Preparation for the PCG for image ',thisimage
  neq=sparse%n
  ncol=sparse%m
 
@@ -81,7 +82,7 @@ program  pcgcorray
 
  !update on all images
  !1. update on image 1
- if(this_image().eq.1)then
+ if(thisimage.eq.1)then
   do i=2,num_images()
    !receives updates from other for its own image
    b_norm=b_norm+b_norm[i]
@@ -90,13 +91,13 @@ program  pcgcorray
  endif
  sync all
  !2. update on the other image
- if(this_image().ne.1)then
+ if(thisimage.ne.1)then
   b_norm=b_norm[1]
   resvec1=resvec1[1]
  endif
  !sync all  !not sure if it is really needed
  do i=1,num_images()
-  if(i.ne.this_image())then
+  if(i.ne.thisimage)then
    !receives updates from other for its own image
    j=startcol[i]
    k=endcol[i]
@@ -107,7 +108,7 @@ program  pcgcorray
 
  conv=resvec1/b_norm
 
- if(this_image().eq.1)then
+ if(thisimage.eq.1)then
   write(*,'(a,e15.5)')' Norm of RHS: ',b_norm
   write(*,'(" Iteration ",i6," Convergence = ",e12.5)')1,conv
  endif
@@ -133,7 +134,7 @@ program  pcgcorray
 
   !update tau
   sync all
-  if(this_image().eq.1)then
+  if(thisimage.eq.1)then
    do i=2,num_images()
     !receives updates from other for its own image
     tau=tau+tau[i]
@@ -141,7 +142,7 @@ program  pcgcorray
   endif
   sync all
   !2. update on the other image
-  if(this_image().ne.1)tau=tau[1]
+  if(thisimage.ne.1)tau=tau[1]
 
   beta=tau/oldtau
   oldtau=tau
@@ -156,7 +157,7 @@ program  pcgcorray
  
   !update w
   sync all
-  if(this_image().eq.1)then
+  if(thisimage.eq.1)then
    do i=2,num_images()
     !receives updates from other for its own image
    w=w+w(:)[i]
@@ -164,7 +165,7 @@ program  pcgcorray
   endif
   sync all
   !2. update on the other image
-  if(this_image().ne.1)w(:)=w(:)[1]
+  if(thisimage.ne.1)w(:)=w(:)[1]
 
   !alpha=p*w
   alpha=0.d0
@@ -174,7 +175,7 @@ program  pcgcorray
 
   !update alpha
   sync all
-  if(this_image().eq.1)then
+  if(thisimage.eq.1)then
    do i=2,num_images()
     !receives updates from other for its own image
     alpha=alpha+alpha[i]
@@ -183,7 +184,7 @@ program  pcgcorray
   endif
   sync all
   !2. update on the other image
-  if(this_image().ne.1)alpha=alpha[1]
+  if(thisimage.ne.1)alpha=alpha[1]
 
   do i=1,ncol
    x(startcolk+i)=x(startcolk+i)+alpha*p(i)
@@ -197,14 +198,14 @@ program  pcgcorray
   conv=resvec1/b_norm
 
 
-  if(this_image().eq.1)then
+  if(thisimage.eq.1)then
    write(*,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')iter,conv,resvec1
   endif
 
   iter=iter+1
 
  enddo
- !$ if(this_image().eq.1)then
+ !$ if(thisimage.eq.1)then
  !$ val=omp_get_wtime()-t1
  !$  write(*,'("  Wall clock time for the iterative process (seconds): ",f12.2)')val
  !$  write(*,'("  Approximate Wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
@@ -212,7 +213,7 @@ program  pcgcorray
 
  sync all
 
- if(this_image().eq.1)then
+ if(thisimage.eq.1)then
   do i=2,num_images()
    !receives updates from other for its own image
    j=startcol[i]
@@ -221,10 +222,10 @@ program  pcgcorray
   enddo
  endif
  sync all
- if(this_image().eq.1)call print_ascii(x,1,neq)
+ if(thisimage.eq.1)call print_ascii(x,1,neq)
 
 
- write(*,'(2(a,i0),a)')"End for image ",this_image()," out of ",num_images()," total images!"
+ write(*,'(2(a,i0),a)')"End for image ",thisimage," out of ",num_images()," total images!"
 
 contains
 
