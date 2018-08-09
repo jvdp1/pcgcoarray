@@ -5,28 +5,35 @@ module modsparse
  public::coo,csr
 
  type::sparse
-  integer(kind=int4),private::unlog=6
+  private
+  integer(kind=int4)::unlog=6
   integer(kind=int4)::n,m      !size of the matrix
-  integer(kind=intnel),allocatable::ia(:)
-  integer(kind=int4),allocatable::ja(:)
-  real(kind=real8),allocatable::a(:)
+  integer(kind=intnel),allocatable,public::ia(:)   !should be private
+  integer(kind=int4),allocatable,public::ja(:)     !should be private
+  real(kind=real8),allocatable,public::a(:)        !should be private
   contains
    procedure::setoutputunit
  end type
 
  type,extends(sparse)::coo
+  private
   integer(kind=int4)::nel
  contains
   procedure::alloc=>alloc_coo
  end type
 
  type,extends(sparse)::csr
+  private
   integer(kind=int4)::sizeia
  contains
+  procedure::get=>getfromfile_csr  
   procedure::alloc=>alloc_csr  
+  procedure::get_dimension_1
+  procedure::get_dimension_2
   procedure::diagcol=>diagcol_csr  
   procedure::diagrow=>diagrow_csr  
   procedure::sub=>subsparse_csr  
+  procedure::multv=>multgenv_csr
   procedure::print=>print_csr
   procedure::printfile=>printtofile_csr
   procedure::printbin=>printtobin_csr
@@ -36,6 +43,7 @@ module modsparse
 
 contains
 
+!SPARSE
 subroutine setoutputunit(sparsee,un)
  class(sparse),intent(inout)::sparsee
  integer(kind=int4)::un
@@ -44,6 +52,7 @@ subroutine setoutputunit(sparsee,un)
 
 end subroutine
 
+!COO
 subroutine alloc_coo(sparse,nel,n,m,unlog)
  class(coo),intent(inout)::sparse
  integer(kind=intnel),intent(in)::nel
@@ -62,6 +71,31 @@ subroutine alloc_coo(sparse,nel,n,m,unlog)
  if(present(unlog))call sparse%setoutputunit(unlog)
 end subroutine
  
+!CSR
+!csr: get matrix
+subroutine getfromfile_csr(sparse,namefile,unlog)
+ class(csr),intent(inout)::sparse
+ integer(kind=int4),intent(in),optional::unlog
+ character(len=*),intent(in)::namefile
+
+ integer(kind=int4)::i,j,nel,un
+ 
+ if(present(unlog))call sparse%setoutputunit(unlog)
+ write(sparse%unlog,'(/2a)')' Read the matrix from file ',trim(namefile)
+
+ open(newunit=un,file=trim(namefile),status='old',action='read',access='stream')
+ read(un)i,j,nel
+ call sparse%alloc(nel,i,j)
+ 
+ read(un)sparse%ia
+ read(un)sparse%ja
+ read(un)sparse%a
+ close(un)
+
+ write(sparse%unlog,'(2a/)')' End of reading the matrix from ',trim(namefile)
+
+end subroutine
+
 subroutine alloc_csr(sparse,nel,n,m,unlog)
  class(csr),intent(inout)::sparse
  integer(kind=intnel),intent(in)::nel
@@ -134,6 +168,38 @@ function subsparse_csr(sparse,startrow,endrow,startcol,endcol)
 
 end function
 
+!csr: get details
+function get_dimension_1(sparse)
+ class(csr),intent(in)::sparse
+ integer(kind=int4)::get_dimension_1
+
+ get_dimension_1=sparse%n
+end function
+
+function get_dimension_2(sparse)
+ class(csr),intent(in)::sparse
+ integer(kind=int4)::get_dimension_2
+
+ get_dimension_2=sparse%m
+end function
+
+!csr: multiplications
+subroutine multgenv_csr(sparse,x,y)
+ !Computes y=0.d0*y+sparse*x
+ class(csr),intent(in)::sparse
+ real(kind=real8),intent(in)::x(:)
+ real(kind=real8),intent(out)::y(:)
+
+ character(len=1)::matdescra(6)
+
+ matdescra(1)='G'
+ matdescra(4)='F'
+ 
+ call mkl_dcsrmv('N',sparse%n,sparse%m,1.d0,matdescra,sparse%a,sparse%ja,sparse%ia(1:sparse%n),sparse%ia(2:sparse%n+1),x,0.d0,y)
+ 
+end subroutine
+
+!csr: print
 subroutine print_csr(sparse)
  class(csr),intent(in)::sparse
 
@@ -182,6 +248,7 @@ subroutine printtobin_csr(sparse,un,typesp)
 
 end subroutine
 
+!csr: reset
 subroutine reset_csr(sparse)
  class(csr),intent(inout)::sparse
  

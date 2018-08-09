@@ -37,7 +37,7 @@ program  prepafile
   do 
    read(unin,*,iostat=io)i,j,k
    if(io.ne.0)exit
-   if(k.ne.sparse%n)typesparse='row'
+   if(k.ne.sparse%get_dimension_1())typesparse='row'
    numimages=numimages+1
   enddo
   rewind(unin)
@@ -50,11 +50,11 @@ program  prepafile
   else
    image=i
    startrow=1
-   endrow=sparse%n
+   endrow=sparse%get_dimension_1()
    nel=int(real(endrow)/numimages)
    startcol=nel*(image-1)+1
    endcol=startcol+nel-1
-   if(image.eq.numimages)endcol=sparse%m
+   if(image.eq.numimages)endcol=sparse%get_dimension_2()
   endif
 
   sparsesub=sparse%sub(startrow,endrow,startcol,endcol)

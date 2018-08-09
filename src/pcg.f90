@@ -38,16 +38,16 @@ program  pcg
 
  !read rhs
  write(*,*)"read the rhs"
- allocate(rhs(sparse%m))
+ allocate(rhs(sparse%get_dimension_2()))
  rhs=0.d0
  open(newunit=un,file='rhs.bin',access='stream',action='read',status='old',buffered='yes')
  read(un)i
  read(un)rhs
 
  write(*,'(/a)')' Preparation for the PCG...'
- neq=sparse%n
- ncol=sparse%m
- endcol=sparse%m
+ neq=sparse%get_dimension_1()
+ ncol=sparse%get_dimension_2()
+ endcol=sparse%get_dimension_2()
  !create preconditioner
  precond=sparse%diagcol(startcol)
  do i=1,ncol
@@ -72,7 +72,7 @@ program  pcg
   stop
  endif
 
- b_norm=norm(rhs,1,sparse%m)
+ b_norm=norm(rhs,1,sparse%get_dimension_2())
  resvec1=norm(r,startcol,endcol)
 
  conv=resvec1/b_norm
@@ -111,7 +111,7 @@ program  pcg
 !stop
 
   !w=LHS*p
-  call multgenv(sparse,p,w)
+  call sparse%multv(p,w)
 !print*,'bbb',tau,beta,w
 !stop
 
@@ -154,21 +154,6 @@ program  pcg
  !$ write(*,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
 
 contains
-
-subroutine multgenv(A,x,y)
- !Computes y=0.d0*y+A*x
- type(csr),intent(in)::A
- real(kind=real8),intent(in)::x(:)
- real(kind=real8),intent(out)::y(:)
-
- character(len=1)::matdescra(6)
-
- matdescra(1)='G'
- matdescra(4)='F'
- 
- call mkl_dcsrmv('N',A%n,A%m,1.d0,matdescra,A%a,A%ja,A%ia(1:A%n),A%ia(2:A%n+1),x,0.d0,y)
- 
-end subroutine
 
 subroutine print_ascii(x,startpos,endpos)
  integer(kind=intc),intent(in)::startpos,endpos

@@ -8,7 +8,7 @@ program  pcgcorray
  integer(kind=int4)::startcolk,maxit=4000
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
  integer(kind=intnel)::nel
- character(len=80)::host
+ character(len=80)::host,cdummy
  real(kind=real8)::tol=1.e-12
  real(kind=real8)::oldtau,conv,thr,beta
  real(kind=real8)::b_norm[*],resvec1[*],alpha[*],tau[*]
@@ -20,6 +20,7 @@ program  pcgcorray
 
  thisimage=this_image()
 
+ write(cdummy,'(i0)')thisimage
  if(thisimage.eq.1)then
   write(*,'(/a/)')' PCG solver with a LHS divided by columns...'
  endif
@@ -35,19 +36,19 @@ program  pcgcorray
  sync all
 
  !Reads the matrix
- call readmatrix(sparse)
+ call sparse%get('subpcg.col'//adjustl(cdummy(:len_trim(cdummy))))
 
  !call sparse%printfile(600+thisimage)
 
  !sync all
 
  !read rhs
- allocate(rhs(sparse%m))
+ allocate(rhs(sparse%get_dimension_2()))
  call readrhs(rhs,startcol,endcol)
 
  write(*,'(a,i0)')' Preparation for the PCG for image ',thisimage
- neq=sparse%n
- ncol=sparse%m
+ neq=sparse%get_dimension_1()
+ ncol=sparse%get_dimension_2()
 
  !create preconditioner
  precond=sparse%diagcol(startcol)
@@ -153,7 +154,7 @@ program  pcgcorray
   enddo
 
   !w=LHS*p
-  call multgenv(sparse,p,w)
+  call sparse%multv(p,w)
  
   !update w
   sync all
@@ -257,28 +258,6 @@ subroutine readparam(startrow,endrow,startcol,endcol)
 
 end subroutine
 
-subroutine readmatrix(sparse)
- type(csr),intent(inout)::sparse
-
- integer(kind=int4)::i,j,nel,un
- character(len=80)::cdummy
-
- write(*,'(/a,i0)')' Reads the matrix from image ',this_image()
- write(cdummy,'(i0)')this_image()
-
- open(newunit=un,file='subpcg.col'//adjustl(cdummy(:len_trim(cdummy))),status='old',action='read',access='stream')
- read(un)i,j,nel
- call sparse%alloc(nel,i,j)
- 
- read(un)sparse%ia
- read(un)sparse%ja
- read(un)sparse%a
- close(un)
-
- write(*,'(a,i0/)')' End of reading the matrix from image ',this_image()
-
-end subroutine
-
 subroutine readrhs(rhs,startcol,endcol)
  !stupid to read a vector like that, but it works
  integer(kind=int4),intent(in)::startcol,endcol
@@ -287,7 +266,7 @@ subroutine readrhs(rhs,startcol,endcol)
  integer(kind=int4)::i,j,io,un
  real(kind=real8)::val
 
- write(*,'(a,i0,a)')" Image ",this_image()," starts to read the rhs"
+ write(*,'(/a)')' Starts to read the rhs'
  rhs=0.d0
  open(newunit=un,file='rhs.bin',access='stream',action='read',status='old',buffered='yes')
  read(un)i
@@ -304,22 +283,8 @@ subroutine readrhs(rhs,startcol,endcol)
   endif
  enddo
  close(un)
+ write(*,'(a)')' End of reading the rhs'
 
-end subroutine
-
-subroutine multgenv(A,x,y)
- !Computes y=0.d0*y+A*x
- type(csr),intent(in)::A
- real(kind=real8),intent(in)::x(:)
- real(kind=real8),intent(out)::y(:)
-
- character(len=1)::matdescra(6)
-
- matdescra(1)='G'
- matdescra(4)='F'
- 
- call mkl_dcsrmv('N',A%n,A%m,1.d0,matdescra,A%a,A%ja,A%ia(1:A%n),A%ia(2:A%n+1),x,0.d0,y)
- 
 end subroutine
 
 subroutine print_ascii(x,startpos,endpos)

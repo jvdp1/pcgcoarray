@@ -22,15 +22,20 @@ program  pcgrowcorray
 
  thisimage=this_image()
 
- write(cdummy,'(i4)')thisimage
+ write(cdummy,'(i0)')thisimage
  open(newunit=unlog,file='log.pcgrow.'//adjustl(cdummy(:len_trim(cdummy))),action='write',status='replace')
 
- !if(thisimage.eq.1)then
-  write(unlog,'(/a/)')' PCG solver with a LHS divided by rows...'
- !endif
+ write(unlog,'(/a)')' PCG solver with a LHS divided by rows...'
 
  call get_environment_variable("HOSTNAME",value=host)
- write(unlog,'(2(a,i0),2a)')" Hello from image ",thisimage," out of ",num_images()," total images on host ",trim(host)
+ write(unlog,'(/2(a,i0),2a)')" Hello from image ",thisimage," out of ",num_images()," total images on host ",trim(host)
+
+ !$omp parallel
+ !$omp master
+ !$ write(*,'(/"  Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
+ !$omp end master
+ !$omp end parallel
+ !$ write(*,'("  Number of threads for MKL   : ",i0/)')mkl_get_max_threads() 
 
  !read the parameter file on image 1
  if(thisimage.eq.1)then
@@ -40,19 +45,19 @@ program  pcgrowcorray
  sync all
 
  !Reads the matrix
- call readmatrix(sparse,unlog)
+ call sparse%get('subpcg.row'//adjustl(cdummy(:len_trim(cdummy))),unlog)
 
  !call sparse%printfile(600+thisimage)
 
  !sync all
 
  !read rhs
- allocate(rhs(sparse%n))
+ allocate(rhs(sparse%get_dimension_1()))
  call readrhs(rhs,startrow,endrow,unlog)
 
- write(unlog,'(a,i0)')' Preparation for the PCG for image ',thisimage
- neq=sparse%m
- nrow=sparse%n
+ write(unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
+ neq=sparse%get_dimension_2()
+ nrow=sparse%get_dimension_1()
 
  !create preconditioner
  precond=sparse%diagrow(startrow)
@@ -163,7 +168,7 @@ program  pcgrowcorray
   sync all  !not sure if it is really needed
 
   !w=LHS*p
-  call multgenv(sparse,p,w)
+  call sparse%multv(p,w)
  
   !alpha=p*w
   alpha=0.d0
@@ -215,7 +220,7 @@ program  pcgrowcorray
 
  enddo
  !$ if(thisimage.eq.1)then
- !$ val=omp_get_wtime()-t1
+ !$  val=omp_get_wtime()-t1
  !$  write(unlog,'(/"  Wall clock time for the iterative process (seconds): ",f12.2)')val
  !$  write(unlog,'("  Approximate wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
  !$ endif
@@ -271,29 +276,6 @@ subroutine readparam(startrow,endrow,startcol,endcol,unlog)
 
 end subroutine
 
-subroutine readmatrix(sparse,unlog)
- type(csr),intent(inout)::sparse
- integer(kind=int4),intent(in)::unlog
-
- integer(kind=int4)::i,j,nel,un
- character(len=80)::cdummy
-
- write(unlog,'(/a,i0)')' Reads the matrix from image ',this_image()
- write(cdummy,'(i0)')this_image()
-
- open(newunit=un,file='subpcg.row'//adjustl(cdummy(:len_trim(cdummy))),status='old',action='read',access='stream')
- read(un)i,j,nel
- call sparse%alloc(nel,i,j,unlog=unlog)
- 
- read(un)sparse%ia
- read(un)sparse%ja
- read(un)sparse%a
- close(un)
-
- write(unlog,'(a,i0/)')' End of reading the matrix from image ',this_image()
-
-end subroutine
-
 subroutine readrhs(rhs,startrow,endrow,unlog)
  !stupid to read a vector like that, but it works
  integer(kind=int4),intent(in)::startrow,endrow,unlog
@@ -302,7 +284,7 @@ subroutine readrhs(rhs,startrow,endrow,unlog)
  integer(kind=int4)::i,j,io,un
  real(kind=real8)::val
 
- write(unlog,'(a,i0,a)')" Image ",this_image()," starts to read the rhs"
+ write(unlog,'(/a)')' Starts to read the rhs'
  rhs=0.d0
  open(newunit=un,file='rhs.bin',access='stream',action='read',status='old',buffered='yes')
  read(un)i
@@ -319,22 +301,8 @@ subroutine readrhs(rhs,startrow,endrow,unlog)
   endif
  enddo
  close(un)
+ write(unlog,'(a)')' End of reading the rhs'
 
-end subroutine
-
-subroutine multgenv(A,x,y)
- !Computes y=0.d0*y+A*x
- type(csr),intent(in)::A
- real(kind=real8),intent(in)::x(:)
- real(kind=real8),intent(out)::y(:)
-
- character(len=1)::matdescra(6)
-
- matdescra(1)='G'
- matdescra(4)='F'
- 
- call mkl_dcsrmv('N',A%n,A%m,1.d0,matdescra,A%a,A%ja,A%ia(1:A%n),A%ia(2:A%n+1),x,0.d0,y)
- 
 end subroutine
 
 subroutine print_ascii(x,startpos,endpos,unlog)
