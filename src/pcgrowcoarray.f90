@@ -1,5 +1,6 @@
 program  pcgrowcorray
  !$ use omp_lib
+ !$ use mkl_service
  use modkind
  use modsparse
  implicit none
@@ -30,12 +31,13 @@ program  pcgrowcorray
  call get_environment_variable("HOSTNAME",value=host)
  write(unlog,'(/2(a,i0),2a)')" Hello from image ",thisimage," out of ",num_images()," total images on host ",trim(host)
 
+ write(unlog,'(/" Number of images            : ",i0)')num_images()
  !$omp parallel
  !$omp master
- !$ write(*,'(/"  Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
+ !$ write(unlog,'(" Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
  !$omp end master
  !$omp end parallel
- !$ write(*,'("  Number of threads for MKL   : ",i0/)')mkl_get_max_threads() 
+ !$ write(unlog,'(" Number of threads for MKL   : ",i0)')mkl_get_max_threads() 
 
  !read the parameter file on image 1
  if(thisimage.eq.1)then
@@ -225,6 +227,8 @@ program  pcgrowcorray
  !$  write(unlog,'("  Approximate wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
  !$ endif
 
+ if(thisimage.eq.1)close(unconv)
+
  sync all
 
  if(thisimage.eq.1)then
@@ -235,15 +239,12 @@ program  pcgrowcorray
    x(j:k)=x(j:k)+x(j:k)[i]
   enddo
  endif
- sync all
+ sync all     !needed to wait for the update   ==>  probably better to use sync images
  if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
-
 
  write(unlog,'(/2(a,i0),a)')" End for image ",thisimage," out of ",num_images()," total images!"
  !$ write(unlog,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
-
  close(unlog)
- if(thisimage.eq.1)close(unconv)
 
 contains
 
@@ -311,7 +312,7 @@ subroutine print_ascii(x,startpos,endpos,unlog)
 
  integer(kind=intc)::un
 
- write(unlog,'(a,i0,a)')" Image ",this_image()," starts to write the solutions!"
+ write(unlog,'(/a,i0,a)')" Image ",this_image()," starts to write the solutions!"
 
 #if (TOUTPUT==1)
  open(newunit=un,file='solutions.pcgcoarray.row.dist')
