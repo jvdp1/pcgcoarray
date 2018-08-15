@@ -6,18 +6,19 @@ program  pcgrowcorray
  implicit none
  integer(kind=intc)::thisimage,unlog,unconv
  integer(kind=intc)::i,j,k,l,m,n,neq,nrow,iter
- integer(kind=int4)::startrowk,maxit=4000
+ integer(kind=int4)::startrowk,maxit=10000
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
  integer(kind=intnel)::nel
  character(len=80)::host,cdummy
  real(kind=real8)::tol=1.e-12
  real(kind=real8)::oldtau,conv,thr,beta
  real(kind=real8)::b_norm[*],resvec1[*],alpha[*],tau[*]
- real(kind=real8),allocatable::rhs(:),precond(:)
+ real(kind=real8),allocatable::rhs(:)!,precond(:)
  real(kind=real8),allocatable::z(:),r(:),w(:)
  real(kind=real8),allocatable::x(:)[:],p(:)[:]
  !$ real(kind=real8)::t1,t2,val
  type(csr)::sparse
+ type(csr)::precond
 
  !$ t2=omp_get_wtime() 
 
@@ -62,12 +63,13 @@ program  pcgrowcorray
  nrow=sparse%get_dimension_1()
 
  !create preconditioner
- precond=sparse%diagrow(startrow)
+ !precond=sparse%diagrow(startrow)
+ call precond%get('precond.row.'//adjustl(cdummy(:len_trim(cdummy))),unlog)
 
  !invert preconditioner
- do i=1,nrow
-  if(precond(i).ne.0)precond(i)=1.d0/precond(i)
- enddo
+ !do i=1,nrow
+ ! if(precond(i).ne.0)precond(i)=1.d0/precond(i)
+ !enddo
  
  !Initialistion PCG arrays
  allocate(x(neq)[*])
@@ -127,10 +129,12 @@ program  pcgrowcorray
  !$ t1=omp_get_wtime() 
  startrowk=startrow-1
  do while(resvec1.gt.thr.and.iter.le.maxit)
-  !z=M*r
-  do i=1,nrow
-   z(i)=precond(i)*r(i)
-  enddo
+  !z=Mi*r
+  !do i=1,nrow
+  ! z(i)=precond(i)*r(i)
+  !enddo
+  !M*z=r
+  call precond%solve(z,r)
 
   !tau=z*r
   tau=0.d0

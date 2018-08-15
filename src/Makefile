@@ -1,14 +1,22 @@
 F90=ifort
 
-F90FLAGS=-O3 -heap-arrays -qopenmp -parallel -lpthread
-F90FLAGS+=-I${MKLROOT}/include/intel64/lp64 
+F90FLAGS=-O3 -heap-arrays -qopenmp -parallel 
+F90FLAGS+=-I${MKLROOT}/include -I${MKLROOT}/include/intel64/lp64 -L${MKLROOT}/lib/intel64
 F90FLAGS+=-lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core 
+F90FLAGS+=-lpthread -ldl
 
 F90FLAGSUB=
 coarraytype=
 coarray=
 
 toutput=0
+
+PARDISOENABLE=1
+
+ifeq ($(PARDISOENABLE),1)
+ PARDISO=1
+ F90FLAGS+=
+endif
 
 ifeq ($(COARRAYENABLE),dist)
  coarray=coarray
@@ -52,7 +60,7 @@ pcgrow$(coarray): modkind.o modsparse.o pcgrow$(coarray).o
 	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(LDFLAGS) $(DEBUG) $^ -o $@$(coarraytype)$(debugext)
 
 %.o: %.f90
-	$(F90) -c $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) $< -o $@
+	$(F90) -c $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) -D_PARDISO=$(PARDISO) $< -o $@
 
 cleanlib:
 	rm -rf *.o *.mod

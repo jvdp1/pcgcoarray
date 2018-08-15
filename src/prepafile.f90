@@ -63,6 +63,21 @@ program  prepafile
   call sparsesub%printbin(image,typesparse)
   call sparsesub%reset
   write(un,*)image,startrow,endrow,startcol,endcol
+ 
+  !preconditioner
+  if((endrow-startrow).lt.endcol-startcol)then     !row format
+   !sparsesub=sparse%subdiag(startrow,endrow,startrow,endrow)
+   sparsesub=sparse%subup(startrow,endrow,startrow,endrow)
+   call sparsesub%sort()
+   !call sparsesub%printfile(650+image)
+   call sparsesub%printbin(image,'precond',typesparse)
+   call sparsesub%reset
+  elseif((endrow-startrow).gt.endcol-startcol)then !column format
+   write(*,'(a)')' ERROR: preconditioner option not supported'
+   stop
+   !sparsesub=sparse%subup(startcol,endcol,startcol,endcol)
+  endif
+
  enddo
 
  close(un)
