@@ -5,7 +5,7 @@ program  prepafile
  use modsparse
  implicit none
  integer(kind=intc)::io,un,unin,i,j,k,l,m,n,image,numimages=4
- integer(kind=int4)::nia,startrow,startcol,endrow,endcol
+ integer(kind=int4)::nia,startrow,startcol,endrow,endcol,ndiag
  integer(kind=intnel)::nel
  character(len=3)::typesparse='col'
  character(len=10)::cdummy
@@ -46,7 +46,7 @@ program  prepafile
  open(newunit=un,file='param.pcgcoarray.'//adjustl(typesparse(:len_trim(typesparse))),status='replace',action='write')
  do i=1,numimages
   if(lex)then
-   read(unin,*)image,startrow,endrow,startcol,endcol
+   read(unin,*)image,startrow,endrow,startcol,endcol,ndiag
   else
    image=i
    startrow=1
@@ -55,6 +55,7 @@ program  prepafile
    startcol=nel*(image-1)+1
    endcol=startcol+nel-1
    if(image.eq.numimages)endcol=sparse%get_dimension_2()
+   ndiag=0
   endif
 
   sparsesub=sparse%sub(startrow,endrow,startcol,endcol)
@@ -68,7 +69,7 @@ program  prepafile
   if((endrow-startrow).lt.endcol-startcol)then     !row format
    !sparsesub=sparse%subdiag(startrow,endrow,startrow,endrow)
    !sparsesub=sparse%subup(startrow,endrow,startrow,endrow)
-   sparsesub=sparse%subtriu(startrow,endrow,startrow,endrow,3)
+   sparsesub=sparse%subtriu(startrow,endrow,startrow,endrow,ndiag)
    call sparsesub%sort()
    !call sparsesub%printfile(650+image)
    call sparsesub%printbin(image,'precond',typesparse)

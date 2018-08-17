@@ -195,6 +195,7 @@ function subsparse_triu_csr(sparse,startrow,endrow,startcol,endcol,oaway)
  integer(kind=int4)::newn,newm,away
  integer(kind=int4)::i,j,k,un
  integer(kind=intnel)::nel
+ logical::lidentity
  
 
  write(sparse%unlog,'(/a,i0,a,i0)')' Extraction of the rows from ',startrow,' to ',endrow
@@ -203,9 +204,13 @@ function subsparse_triu_csr(sparse,startrow,endrow,startcol,endcol,oaway)
  newn=endrow-startrow+1
  newm=endcol-startcol+1
 
+ lidentity=.false.
  away=max(endrow,endcol)
  if(present(oaway))away=oaway 
- if(away<0)away=0
+ if(away<0)then
+  away=0
+  lidentity=.true.
+ endif
 
  write(sparse%unlog,'(a,i0)')' Number of diagonals above the main diagonal: ',away
  
@@ -238,6 +243,7 @@ function subsparse_triu_csr(sparse,startrow,endrow,startcol,endcol,oaway)
     endif
   enddo
  enddo
+ if(lidentity)subsparse_triu_csr%a=1.d0
  subsparse_triu_csr%ia(1)=1
  do i=2,subsparse_triu_csr%n+1
   subsparse_triu_csr%ia(i)=subsparse_triu_csr%ia(i)+subsparse_triu_csr%ia(i-1)
