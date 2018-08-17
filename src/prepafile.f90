@@ -67,7 +67,8 @@ program  prepafile
   !preconditioner
   if((endrow-startrow).lt.endcol-startcol)then     !row format
    !sparsesub=sparse%subdiag(startrow,endrow,startrow,endrow)
-   sparsesub=sparse%subup(startrow,endrow,startrow,endrow)
+   !sparsesub=sparse%subup(startrow,endrow,startrow,endrow)
+   sparsesub=sparse%subtriu(startrow,endrow,startrow,endrow,3)
    call sparsesub%sort()
    !call sparsesub%printfile(650+image)
    call sparsesub%printbin(image,'precond',typesparse)
