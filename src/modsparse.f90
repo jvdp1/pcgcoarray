@@ -7,6 +7,7 @@ module modsparse
 #if (_PARDISO==1)
  use mkl_pardiso
 #endif
+ !$ use omp_lib
  implicit none
  private
  public::coo,csr
@@ -44,6 +45,7 @@ module modsparse
   procedure::sub=>subsparse_csr  
   procedure::subup=>subsparse_up_csr  
   procedure::subdiag=>subsparse_diag_csr  
+  procedure::subtriu=>subsparse_triu_csr  
   procedure::multv=>multgenv_csr
   procedure::solve=>solve_csr
   procedure::print=>print_csr
@@ -180,6 +182,65 @@ function subsparse_csr(sparse,startrow,endrow,startcol,endcol)
  subsparse_csr%ia(1)=1
  do i=2,subsparse_csr%n+1
   subsparse_csr%ia(i)=subsparse_csr%ia(i)+subsparse_csr%ia(i-1)
+ enddo
+
+end function
+
+function subsparse_triu_csr(sparse,startrow,endrow,startcol,endcol,oaway)
+ type(csr)::subsparse_triu_csr
+ class(csr),intent(in)::sparse
+ integer(kind=int4),intent(in)::startrow,endrow,startcol,endcol
+ integer(kind=int4),intent(in),optional::oaway
+ 
+ integer(kind=int4)::newn,newm,away
+ integer(kind=int4)::i,j,k,un
+ integer(kind=intnel)::nel
+ 
+
+ write(sparse%unlog,'(/a,i0,a,i0)')' Extraction of the rows from ',startrow,' to ',endrow
+ write(sparse%unlog,'(a,i0,a,i0)')' Extraction of the columns from ',startcol,' to ',endcol
+
+ newn=endrow-startrow+1
+ newm=endcol-startcol+1
+
+ away=max(endrow,endcol)
+ if(present(oaway))away=oaway 
+ if(away<0)away=0
+
+ write(sparse%unlog,'(a,i0)')' Number of diagonals above the main diagonal: ',away
+ 
+ nel=0
+ do i=startrow,endrow
+  do j=sparse%ia(i),sparse%ia(i+1)-1
+   k=sparse%ja(j)
+   if(k.ge.startcol.and.k.le.endcol.and.k.ge.i.and.k.le.i+away)then
+    nel=nel+1
+   endif
+  enddo
+ enddo
+
+ call subsparse_triu_csr%alloc(nel,newn,newm)
+
+ nel=0
+ subsparse_triu_csr%ia=0
+ 
+ un=0
+ nel=1
+ do i=startrow,endrow
+  un=un+subsparse_triu_csr%ia(nel)
+  nel=nel+1
+  do j=sparse%ia(i),sparse%ia(i+1)-1
+    k=sparse%ja(j)
+    if(k.ge.startcol.and.k.le.endcol.and.k.ge.i.and.k.le.i+away)then
+     subsparse_triu_csr%ia(nel)=subsparse_triu_csr%ia(nel)+1
+     subsparse_triu_csr%ja(un+subsparse_triu_csr%ia(nel))=k-startcol+1
+     subsparse_triu_csr%a(un+subsparse_triu_csr%ia(nel))=sparse%a(j)
+    endif
+  enddo
+ enddo
+ subsparse_triu_csr%ia(1)=1
+ do i=2,subsparse_triu_csr%n+1
+  subsparse_triu_csr%ia(i)=subsparse_triu_csr%ia(i)+subsparse_triu_csr%ia(i-1)
  enddo
 
 end function
@@ -501,6 +562,7 @@ subroutine solve_csr(sparse,x,y)
  logical,save::lpardisofirst=.true.
 
  integer(kind=int4)::i
+ !$ real(kind=real8)::t1
 
  if(.not.sparse%lsquare)then
   write(sparse%unlog,'(a)')' Warning: the sparse matrix is not squared!'
@@ -508,7 +570,7 @@ subroutine solve_csr(sparse,x,y)
  endif
 
  if(lpardisofirst)then
-  write(sparse%unlog,*)'aaaa phase 12'
+  !$ t1=omp_get_wtime()
   !Preparation of Cholesky of A11 with Pardiso
   !initialize pt
   allocate(pt(64))
@@ -518,12 +580,13 @@ subroutine solve_csr(sparse,x,y)
  
   !initialize iparm
   call pardisoinit(pt,mtype,iparm)
-  do i=1,64
-   write(sparse%unlog,*)'iparm',i,iparm(i)
-  enddo
+!  do i=1,64
+!   write(sparse%unlog,*)'iparm',i,iparm(i)
+!  enddo
   
   !Ordering and factorization
   phase=12
+  iparm(2)=3
   iparm(27)=1
   write(sparse%unlog,'(a)')' Start ordering and factorization'
   call pardiso(pt,maxfct,mnum,mtype,phase,&
@@ -533,12 +596,12 @@ subroutine solve_csr(sparse,x,y)
  
   write(sparse%unlog,'(a,i0)')' Number of nonzeros in factors  = ',iparm(18)
   write(sparse%unlog,'(a,i0)')' Number of factorization MFLOPS = ',iparm(19)
-  !lpardisofirst=.false.
+  !$ write(sparse%unlog,'(a,i0)')' Elapsed time                   = ',omp_get_wtime()-t1
  endif 
 
  !Solving
  phase=33
- iparm(27)=1
+ iparm(27)=0
  call pardiso(pt,maxfct,mnum,mtype,phase,&
               sparse%get_dimension_1(),sparse%a,sparse%ia,sparse%ja,&
               idum,nrhs,iparm,msglvl,y,x,error)
