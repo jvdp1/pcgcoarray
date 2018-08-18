@@ -16,6 +16,7 @@ program  pcgrowcorray
  real(kind=real8),allocatable::rhs(:)!,precond(:)
  real(kind=real8),allocatable::z(:),r(:),w(:)
  real(kind=real8),allocatable::x(:)[:],p(:)[:]
+ real(kind=real8),allocatable::T(:,:)
  !$ real(kind=real8)::t1,t2,val
  type(csr)::sparse
  type(csr)::precond
@@ -121,6 +122,10 @@ program  pcgrowcorray
   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')1,conv,0.
  endif
 
+ if(thisimage.eq.num_images())then
+  allocate(T(maxit,maxit));T=0.d0
+ endif
+
  alpha=1.d0
  iter=2
  thr=tol*b_norm
@@ -177,6 +182,8 @@ program  pcgrowcorray
   call sparse%multv(p,w)
  
   !alpha=p*w
+  if(thisimage.eq.num_images().and.iter.gt.2)call addalphabetatot(T,iter,alpha,beta)
+
   alpha=0.d0
   do i=1,nrow
    alpha=alpha+p(startrowk+i)*w(i)
@@ -233,6 +240,12 @@ program  pcgrowcorray
 
  if(thisimage.eq.1)close(unconv)
 
+ if(thisimage.eq.num_images())then
+  !Estimation of eigenvalues and condition number
+  if(iter>3)call eigenvalandcondnumber(T,iter,unlog)
+  deallocate(T)
+ endif
+
  sync all
 
  if(thisimage.eq.1)then
@@ -245,6 +258,7 @@ program  pcgrowcorray
  endif
  sync all     !needed to wait for the update   ==>  probably better to use sync images
  if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
+
 
  write(unlog,'(/2(a,i0),a)')" End for image ",thisimage," out of ",num_images()," total images!"
  !$ write(unlog,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
@@ -346,5 +360,83 @@ function norm(vector,starteq,endeq)
  enddo
 
 end function
+
+!Condition number
+subroutine addalphabetatot(T,iter,previousalpha,beta)
+ integer(kind=int4),intent(in)::iter
+ real(kind=real8),intent(in)::previousalpha,beta
+ real(kind=real8),intent(inout)::T(:,:)
+ 
+ integer(kind=int4)::previousiter
+ real(kind=real8)::b
+
+ b=sqrt(beta)
+ previousiter=iter-1
+
+ T(previousiter,previousiter)=T(previousiter,previousiter)+1.d0/previousalpha
+ T(previousiter,iter)=T(previousiter,iter)+b/previousalpha
+ T(iter,previousiter)=T(iter,previousiter)+b/previousalpha
+ T(iter,iter)=T(iter,iter)+beta/previousalpha
+
+end subroutine
+
+subroutine eigenvalandcondnumber(T,iter,unlog)
+ integer(kind=int4),intent(in)::iter
+ integer(kind=int4),intent(in),optional::unlog
+ real(kind=real8),intent(inout)::T(:,:)
+
+ integer(kind=int4)::un
+ real(kind=real8),allocatable::eigenvalue(:)
+
+ un=6
+ if(present(unlog))un=unlog
+
+ allocate(eigenvalue(iter-3))
+
+ call eigensyevd(T(2:iter-2,2:iter-2),iter-3,eigenvalue)
+
+ write(un,'(/"  Mininum | maximum eigenvalues        : ",g0.5,a,g0.5)')minval(eigenvalue),' | ',maxval(eigenvalue)
+ write(un,'( "   Effective spectral condition number : ",g0.5)')maxval(eigenvalue)/minval(eigenvalue)
+ deallocate(eigenvalue)
+
+end subroutine
+
+subroutine eigensyevd(mat,n,w,leigvectors)
+ integer(kind=int4),intent(in)::n
+ real(kind=real8),intent(inout)::mat(:,:),w(:)
+ logical,intent(in),optional::leigvectors
+
+ integer(kind=int4)::info,i,j,lwork,liwork
+ integer(kind=int4),allocatable::iwork(:)
+ real(kind=real8),allocatable::work(:)
+ character(len=1)::jobz
+
+ jobz='N'
+ if(present(leigvectors))then
+  if(leigvectors)jobz='V'
+ endif
+
+ lwork=2*n*n+6*n+1
+ liwork=5*n+3
+ allocate(work(lwork),iwork(liwork))
+
+ lwork=-1
+ call dsyevd(jobz,'L',n,mat,n,w,work,lwork,iwork,liwork,info)
+ if (info.eq.0) then
+  lwork=int(work(1))
+  liwork=iwork(1)
+  deallocate(work,iwork)
+  allocate(work(lwork),iwork(liwork))
+ else
+  print*,'ERROR info : ',info
+  return
+ endif
+
+ call dsyevd(jobz,'L',n,mat,n,w,work,lwork,iwork,liwork,info)
+ if (info.ne.0) then
+  print*,'ERROR info-end: ',info
+ endif
+
+end subroutine
 
 end program
