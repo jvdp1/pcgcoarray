@@ -1,5 +1,3 @@
-!ifort prepafile.f90 -o prepafile
-
 program  prepafile
  use modkind
  use modsparse

@@ -186,13 +186,13 @@ function subsparse_csr(sparse,startrow,endrow,startcol,endcol)
 
 end function
 
-function subsparse_triu_csr(sparse,startrow,endrow,startcol,endcol,oaway)
+function subsparse_triu_csr(sparse,startrow,endrow,startcol,endcol,oaway2,oaway1)
  type(csr)::subsparse_triu_csr
  class(csr),intent(in)::sparse
  integer(kind=int4),intent(in)::startrow,endrow,startcol,endcol
- integer(kind=int4),intent(in),optional::oaway
+ integer(kind=int4),intent(in),optional::oaway1,oaway2
  
- integer(kind=int4)::newn,newm,away
+ integer(kind=int4)::newn,newm,away1,away2
  integer(kind=int4)::i,j,k,un
  integer(kind=intnel)::nel
  logical::lidentity
@@ -205,20 +205,26 @@ function subsparse_triu_csr(sparse,startrow,endrow,startcol,endcol,oaway)
  newm=endcol-startcol+1
 
  lidentity=.false.
- away=max(endrow,endcol)
- if(present(oaway))away=oaway 
- if(away<0)then
-  away=0
+ away1=0
+ if(present(oaway1))away1=oaway1 
+ if(away1<0)then
+  away1=0
+ endif
+
+ away2=max(endrow,endcol)
+ if(present(oaway2))away2=oaway2 
+ if(away2<0)then
+  away2=0
   lidentity=.true.
  endif
 
- write(sparse%unlog,'(a,i0)')' Number of diagonals above the main diagonal: ',away
+ write(sparse%unlog,'(a,i0)')' Number of diagonals above the main diagonal: ',away2
  
  nel=0
  do i=startrow,endrow
   do j=sparse%ia(i),sparse%ia(i+1)-1
    k=sparse%ja(j)
-   if(k.ge.startcol.and.k.le.endcol.and.k.ge.i.and.k.le.i+away)then
+   if(k.ge.startcol.and.k.le.endcol.and.k.ge.i+away1.and.k.le.i+away2)then
     nel=nel+1
    endif
   enddo
@@ -236,7 +242,7 @@ function subsparse_triu_csr(sparse,startrow,endrow,startcol,endcol,oaway)
   nel=nel+1
   do j=sparse%ia(i),sparse%ia(i+1)-1
     k=sparse%ja(j)
-    if(k.ge.startcol.and.k.le.endcol.and.k.ge.i.and.k.le.i+away)then
+    if(k.ge.startcol.and.k.le.endcol.and.k.ge.i+away1.and.k.le.i+away2)then
      subsparse_triu_csr%ia(nel)=subsparse_triu_csr%ia(nel)+1
      subsparse_triu_csr%ja(un+subsparse_triu_csr%ia(nel))=k-startcol+1
      subsparse_triu_csr%a(un+subsparse_triu_csr%ia(nel))=sparse%a(j)

@@ -11,6 +11,7 @@ program convertfrommatlab
  character(len=30)::cdummy1,cdummy2
  type(csr)::sparse,precond
 
+ !per image
  open(newunit=unin,file='param.convert',action='read',status='old')
 
  call numlines(unin,nmat)
@@ -79,17 +80,29 @@ program convertfrommatlab
   sparse%a=ra
   deallocate(ra)
   ndiag=0 !dim2
-  write(*,*)' Size precond: ',1,dim1,(i-1)*dim1+1,i*dim1
-  precond=sparse%subtriu(1,dim1,(i-1)*dim1+1,i*dim1,ndiag)
+  precond=sparse%subtriu(1,dim1,(i-1)*dim1+1,i*dim1,ndiag+(i-1)*dim1,(i-1)*dim1)
   call precond%printbin(cim,'precond','row')
   call sparse%printbin(cim,'row')
   call sparse%reset()
   call precond%reset()
   write(unout,*)cim,(i-1)*dim1+1,i*dim1,1,dim2
  enddo
-
  close(unout)
  close(unin)
+
+ allocate(ra(dim2))
+ open(newunit=un,file='rhs.dat',action='read',status='old')
+ do j=1,5
+  read(un,*)
+ enddo
+ do j=1,dim2
+  read(un,*)ra(j)
+ enddo
+ close(un)
+ open(newunit=un,file='rhs.bin',access='stream',action='write',status='replace',buffered='yes')
+ write(un)dim2
+ write(un)ra
+ close(un)
 
 contains
 

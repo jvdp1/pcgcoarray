@@ -42,13 +42,16 @@ endif
 
 LDFLAGS=
 
-EXEC=prepafile pcg
+EXEC=prepafile pcg convertfrommatlab
 
 ifneq ($(COARRAYENABLE),)
  EXEC=pcg$(coarray) pcgrow$(coarray)
 endif
 
 all: $(EXEC)
+
+convertfrommatlab: modkind.o modsparse.o convertfrommatlab.f90
+	$(F90) $(F90FLAGS) $(LDFLAGS) $^ -o $@$(debugext)
 
 prepafile: modkind.o modsparse.o prepafile.f90 
 	$(F90) $(F90FLAGS) $(LDFLAGS) $^ -o $@$(debugext)
@@ -66,5 +69,5 @@ cleanlib:
 	rm -rf *.o *.mod
 
 clean:
-	rm -rf *.o *.mod pcg *.dist* *.shared* prepafile
+	rm -rf *.o *.mod pcg *.dist* *.shared* prepafile convertfrommatlab
 
