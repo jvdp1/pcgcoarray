@@ -649,7 +649,7 @@ subroutine print_csr(sparse)
 
  do i=1,sparse%n
   do j=sparse%ia(i),sparse%ia(i+1)-1
-   write(sparse%unlog,'(i10,i10,f16.8)'),i,sparse%ja(j),sparse%a(j)
+   write(sparse%unlog,'(i10,i10,f16.8)')i,sparse%ja(j),sparse%a(j)
   enddo
  enddo
 
@@ -682,13 +682,16 @@ subroutine printtobin_csr(sparse,un,typesp,namefile)
  
  write(cdummy,'(i0)')un
  if(present(typesp).and..not.present(namefile))then
-  open(newunit=unin,file='subpcg.'//adjustl(typesp(:len_trim(typesp)))//adjustl(cdummy(:len_trim(cdummy))),action='write',access='stream',buffered='yes')
+  open(newunit=unin,file='subpcg.'//adjustl(typesp(:len_trim(typesp)))//adjustl(cdummy(:len_trim(cdummy))),&
+        action='write',access='stream',buffered='yes')
  elseif(.not.present(typesp).and.present(namefile))then
-  open(newunit=unin,file=adjustl(namefile(:len_trim(namefile)))//'.'//adjustl(cdummy(:len_trim(cdummy))),action='write',access='stream',buffered='yes')
+  open(newunit=unin,file=adjustl(namefile(:len_trim(namefile)))//'.'//adjustl(cdummy(:len_trim(cdummy))),&
+        action='write',access='stream',buffered='yes')
  elseif(present(typesp).and.present(namefile))then
   open(newunit=unin,file=adjustl(typesp(:len_trim(typesp)))//'.'//&
                          adjustl(namefile(:len_trim(namefile)))//'.'//&
-                         adjustl(cdummy(:len_trim(cdummy))),action='write',access='stream',buffered='yes')
+                         adjustl(cdummy(:len_trim(cdummy))),&
+        action='write',access='stream',buffered='yes')
  endif
 
  write(unin)sparse%n,sparse%m,sparse%ia(sparse%n+1)-1

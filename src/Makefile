@@ -1,6 +1,6 @@
 F90=ifort
 
-F90FLAGS=-O3 -heap-arrays -qopenmp -parallel 
+F90FLAGS=-O3 -heap-arrays -qopenmp -parallel -stand f08
 F90FLAGS+=-I${MKLROOT}/include -I${MKLROOT}/include/intel64/lp64 -L${MKLROOT}/lib/intel64
 F90FLAGS+=-lmkl_blas95_lp64 -lmkl_lapack95_lp64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core 
 F90FLAGS+=-lpthread -ldl
