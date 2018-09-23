@@ -2,7 +2,7 @@
 include 'mkl_pardiso.f90'
 #endif
 
-module modsparse
+module modsparse_old
  use modkind
 #if (_PARDISO==1)
  use mkl_pardiso
@@ -10,7 +10,7 @@ module modsparse
  !$ use omp_lib
  implicit none
  private
- public::coo,csr
+ public::csr
 
  type::sparse
   private
@@ -22,13 +22,6 @@ module modsparse
   logical::lsquare
   contains
    procedure::setoutputunit
- end type
-
- type,extends(sparse)::coo
-  private
-  integer(kind=int4)::nel
- contains
-  procedure::alloc=>alloc_coo
  end type
 
  type,extends(sparse)::csr
@@ -66,27 +59,6 @@ subroutine setoutputunit(sparsee,un)
 
 end subroutine
 
-!COO
-subroutine alloc_coo(sparse,nel,n,m,unlog)
- class(coo),intent(inout)::sparse
- integer(kind=intnel),intent(in)::nel
- integer(kind=int4),intent(in)::n
- integer(kind=int4),intent(in),optional::m
- integer(kind=int4),intent(in),optional::unlog
-
- sparse%nel=nel
- sparse%n=n
- sparse%m=n
- if(present(m))sparse%m=m
- sparse%lsquare=.true.
- if(sparse%n.ne.sparse%m)sparse%lsquare=.false.
- allocate(sparse%ia(nel),sparse%ja(nel),sparse%a(nel))
- sparse%ia=0
- sparse%ja=0
- sparse%a=0.d0
- if(present(unlog))call sparse%setoutputunit(unlog)
-end subroutine
- 
 !CSR
 !csr: get matrix
 subroutine getfromfile_csr(sparse,namefile,unlog)

@@ -42,21 +42,18 @@ endif
 
 LDFLAGS=
 
-EXEC=prepafile pcg
+EXEC=prepafile
 
 ifneq ($(COARRAYENABLE),)
- EXEC=pcg$(coarray) pcgrow$(coarray)
+ EXEC=pcgrow$(coarray)
 endif
 
 all: $(EXEC)
 
-prepafile: modkind.o modsparse.o prepafile.f90 
+prepafile: modkind.o modsparse_old.o prepafile.f90 
 	$(F90) $(F90FLAGS) $(LDFLAGS) $^ -o $@$(debugext)
 
-pcg$(coarray): modkind.o modsparse.o pcg$(coarray).o
-	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(LDFLAGS) $(DEBUG) $^ -o $@$(coarraytype)$(debugext)
-
-pcgrow$(coarray): modkind.o modsparse.o pcgrow$(coarray).o
+pcgrow$(coarray): modkind.o modsparse_old.o pcgrow$(coarray).o
 	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(LDFLAGS) $(DEBUG) $^ -o $@$(coarraytype)$(debugext)
 
 %.o: %.f90

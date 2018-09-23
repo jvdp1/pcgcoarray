@@ -2,7 +2,7 @@ program  pcgrowcorray
  !$ use omp_lib
  !$ use mkl_service
  use modkind
- use modsparse
+ use modsparse_old
  implicit none
  integer(kind=intc)::thisimage,unlog,unconv
  integer(kind=intc)::i,j,k,l,m,n,neq,nrow,iter
