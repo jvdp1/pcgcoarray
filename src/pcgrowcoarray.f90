@@ -2,14 +2,15 @@ program  pcgrowcorray
  !$ use omp_lib
  !$ use mkl_service
  use modkind
- use modsparse_old
+! use modsparse_old
+ use modsparse
  implicit none
  integer(kind=intc)::thisimage,unlog,unconv
  integer(kind=intc)::i,j,k,l,m,n,neq,nrow,iter
  integer(kind=int4)::startrowk,maxit=10000
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
  integer(kind=intnel)::nel
- character(len=80)::host,cdummy
+ character(len=80)::host,cdummy,cdummy1
  real(kind=real8)::tol=1.e-12
  real(kind=real8)::oldtau,conv,thr,beta
  real(kind=real8)::b_norm[*],resvec1[*],alpha[*],tau[*]
@@ -18,8 +19,10 @@ program  pcgrowcorray
  real(kind=real8),allocatable::x(:)[:],p(:)[:]
  real(kind=real8),allocatable::T(:,:)
  !$ real(kind=real8)::t1,t2,val
- type(csr)::sparse
- type(csr)::precond
+! type(csr)::sparse
+! type(csr)::precond
+ type(crssparse)::crs
+ type(crssparse)::crsprecond
 
  !$ t2=omp_get_wtime() 
 
@@ -49,23 +52,32 @@ program  pcgrowcorray
  sync all
 
  !Reads the matrix
- call sparse%get('subpcg.row'//adjustl(cdummy(:len_trim(cdummy))),unlog)
+! call sparse%get('subpcg.row'//adjustl(cdummy(:len_trim(cdummy))),unlog)
+ cdummy1='crs_subpcg.row'//adjustl(cdummy(:len_trim(cdummy)))
+ crs=crssparse(cdummy1,unlog)
+ call crs%printstats()
 
  !call sparse%printfile(600+thisimage)
 
  !sync all
 
  !read rhs
- allocate(rhs(sparse%get_dimension_1()))
+ !allocate(rhs(sparse%get_dimension_1()))
+ allocate(rhs(crs%getdim(1)))
  call readrhs(rhs,startrow,endrow,unlog)
 
  write(unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
- neq=sparse%get_dimension_2()
- nrow=sparse%get_dimension_1()
+ !neq=sparse%get_dimension_2()
+ !nrow=sparse%get_dimension_1()
+ neq=crs%getdim(2)
+ nrow=crs%getdim(1)
 
  !create preconditioner
  !precond=sparse%diagrow(startrow)
- call precond%get('precond.row.'//adjustl(cdummy(:len_trim(cdummy))),unlog)
+ !call precond%get('precond.row.'//adjustl(cdummy(:len_trim(cdummy))),unlog)
+ cdummy1='crs_precond.row'//adjustl(cdummy(:len_trim(cdummy)))
+ crsprecond=crssparse(cdummy1,unlog)
+ call crsprecond%printstats()
 
  !invert preconditioner
  !do i=1,nrow
@@ -119,7 +131,7 @@ program  pcgrowcorray
  write(unlog,'(/a,e15.5)')' Norm of RHS: ',b_norm
  if(thisimage.eq.1)then
   open(newunit=unconv,file='convergence.dat',status='replace',action='write')
-  write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')1,conv,0.
+  write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,1x,e12.5)')1,conv,0.
  endif
 
  if(thisimage.eq.num_images())then
@@ -139,7 +151,8 @@ program  pcgrowcorray
   ! z(i)=precond(i)*r(i)
   !enddo
   !M*z=r
-  call precond%solve(z,r)
+  !call precond%solve(z,r)
+  call crsprecond%solve(z,r)
 
   !tau=z*r
   tau=0.d0
@@ -179,7 +192,8 @@ program  pcgrowcorray
   sync all  !not sure if it is really needed
 
   !w=LHS*p
-  call sparse%multv(p,w)
+  !call sparse%multv(p,w)
+  call crs%multbyv(1._real8,'n',p,0._real8,w)
  
   !alpha=p*w
   if(thisimage.eq.num_images().and.iter.gt.2)call addalphabetatot(T,iter,alpha,beta)
@@ -226,7 +240,7 @@ program  pcgrowcorray
   conv=resvec1/b_norm
 
   if(thisimage.eq.1)then
-   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,x,e12.5)')iter,conv,resvec1
+   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,1x,e12.5)')iter,conv,resvec1
   endif
 
   iter=iter+1
