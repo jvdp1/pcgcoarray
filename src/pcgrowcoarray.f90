@@ -2,7 +2,6 @@ program  pcgrowcorray
  !$ use omp_lib
  !$ use mkl_service
  use modkind
-! use modsparse_old
  use modsparse
  implicit none
  integer(kind=intc)::thisimage,unlog,unconv
@@ -19,8 +18,6 @@ program  pcgrowcorray
  real(kind=real8),allocatable::x(:)[:],p(:)[:]
  real(kind=real8),allocatable::T(:,:)
  !$ real(kind=real8)::t1,t2,val
-! type(csr)::sparse
-! type(csr)::precond
  type(crssparse)::crs
  type(crssparse)::crsprecond
 
@@ -52,29 +49,22 @@ program  pcgrowcorray
  sync all
 
  !Reads the matrix
-! call sparse%get('subpcg.row'//adjustl(cdummy(:len_trim(cdummy))),unlog)
  cdummy1='crs_subpcg.row'//adjustl(cdummy(:len_trim(cdummy)))
  crs=crssparse(cdummy1,unlog)
  call crs%printstats()
 
- !call sparse%printfile(600+thisimage)
 
  !sync all
 
  !read rhs
- !allocate(rhs(sparse%get_dimension_1()))
  allocate(rhs(crs%getdim(1)))
  call readrhs(rhs,startrow,endrow,unlog)
 
  write(unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
- !neq=sparse%get_dimension_2()
- !nrow=sparse%get_dimension_1()
  neq=crs%getdim(2)
  nrow=crs%getdim(1)
 
  !create preconditioner
- !precond=sparse%diagrow(startrow)
- !call precond%get('precond.row.'//adjustl(cdummy(:len_trim(cdummy))),unlog)
  cdummy1='crs_precond.row'//adjustl(cdummy(:len_trim(cdummy)))
  crsprecond=crssparse(cdummy1,unlog)
  call crsprecond%printstats()
@@ -151,7 +141,6 @@ program  pcgrowcorray
   ! z(i)=precond(i)*r(i)
   !enddo
   !M*z=r
-  !call precond%solve(z,r)
   call crsprecond%solve(z,r)
 
   !tau=z*r
@@ -192,7 +181,6 @@ program  pcgrowcorray
   sync all  !not sure if it is really needed
 
   !w=LHS*p
-  !call sparse%multv(p,w)
   call crs%multbyv(1._real8,'n',p,0._real8,w)
  
   !alpha=p*w
