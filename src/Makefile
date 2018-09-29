@@ -54,7 +54,7 @@ all: $(EXEC)
 prepafile: modkind.o $(LIBSPARSEROOT)$(LIBSPARSE)/libsparse.a prepafile.f90 
 	$(F90) $(F90FLAGS) $(LDFLAGS) $^ -o $@$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE)/libsparse.a
 
-pcgrowcoarray: modkind.o pcgrowcoarray.o
+pcgrowcoarray: modkind.o modpcgcoarray.o pcgrowcoarray.o
 	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(LDFLAGS) $(DEBUG) $^ -o $@$(coarraytype)$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE)/libsparse.a
 
 %.o: %.f90
