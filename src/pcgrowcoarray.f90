@@ -46,19 +46,23 @@ program  pcgrowcorray
  crs=crssparse(cdummy1,unlog)
  call crs%printstats()
 
+ neq=crs%getdim(2)
+
  !create preconditioner
  cdummy1='crs_precond.row'//adjustl(cdummy(:len_trim(cdummy)))
  crsprecond=crssparse(cdummy1,unlog)
  call crsprecond%printstats()
 
+ !solution vector
+ allocate(x(neq)[*])
+ x=0.d0
 
  sync all
 
- call pcgrowcoarray(crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
+ call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
 
  sync all
 
- neq=crs%getdim(2)
 
  if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
 

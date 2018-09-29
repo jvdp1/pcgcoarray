@@ -10,16 +10,19 @@ module modpcgcoarray
 contains
 
 !PUBLIC
-subroutine pcgrowcoarray(crs,x,crhs,crsprecond,startrow,endrow,unlog)
+subroutine pcgrowcoarray(neq,crs,x,crhs,crsprecond,startrow,endrow,unlog&
+                          ,opmaxit,optol)
  type(crssparse),intent(inout)::crs
  type(crssparse),intent(inout)::crsprecond
  integer(kind=int4),intent(in)::startrow[*],endrow[*]
- integer(kind=int4),intent(in)::unlog
- real(kind=real8),allocatable,intent(inout)::x(:)[:]
+ integer(kind=int4),intent(in)::unlog,neq
+ integer(kind=int4),intent(in),optional::opmaxit
+ real(kind=real8),intent(inout)::x(:)[*]
+ real(kind=real8),intent(in),optional::optol
  character(len=*),intent(in)::crhs
 
  integer(kind=int4)::thisimage,unconv
- integer(kind=int4)::i,j,k,neq,nrow,iter
+ integer(kind=int4)::i,j,k,nrow,iter
  integer(kind=int4)::startrowk,maxit=10000
  real(kind=real8)::tol=1.e-12
  real(kind=real8)::oldtau,conv,thr,beta
@@ -34,7 +37,7 @@ subroutine pcgrowcoarray(crs,x,crhs,crsprecond,startrow,endrow,unlog)
 
  thisimage=this_image()
 
- write(unlog,'(/a,i0,a)')' Start image ',thisimage,' of the PCG Coarray subroutine...'
+ write(unlog,'(//a,i0,a)')' **Start image ',thisimage,' of the PCG Coarray subroutine...'
 
  write(unlog,'(/" Number of images            : ",i0)')num_images()
  !$omp parallel
@@ -44,14 +47,17 @@ subroutine pcgrowcoarray(crs,x,crhs,crsprecond,startrow,endrow,unlog)
  !$omp end parallel
  !$ write(unlog,'(" Number of threads for MKL   : ",i0)')mkl_get_max_threads() 
 
+ !optional arguments
+ if(present(opmaxit))maxit=opmaxit
+ if(present(optol))tol=optol
+
  sync all
 
  !read rhs
  allocate(rhs(crs%getdim(1)))
- call readrhs(rhs,startrow,endrow,unlog)
+ call readrhs(rhs,crhs,startrow,endrow,unlog)
 
  write(unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
- neq=crs%getdim(2)
  nrow=crs%getdim(1)
 
  !check the preconditioner
@@ -72,10 +78,7 @@ subroutine pcgrowcoarray(crs,x,crhs,crsprecond,startrow,endrow,unlog)
 
  !initiatilisation of r
  allocate(b_norm[*],resvec1[*],alpha[*],tau[*])
- if(.not.allocated(x))then
-  allocate(x(neq)[*])
-  x=0.d0
- endif
+
  if(sum(x).eq.0.d0)then
   r=rhs
  else
@@ -251,7 +254,7 @@ subroutine pcgrowcoarray(crs,x,crhs,crsprecond,startrow,endrow,unlog)
  endif
  sync all     !needed to wait for the update   ==>  probably better to use sync images
 
- write(unlog,'(/a,i0,a)')' End image ',thisimage,' of the PCG Coarray subroutine...'
+ write(unlog,'(/a,i0,a)')' **End image ',thisimage,' of the PCG Coarray subroutine...'
  !$ write(unlog,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
 
 end subroutine
@@ -259,17 +262,21 @@ end subroutine
 
 !PRIVATE
 !READ RHS
-subroutine readrhs(rhs,startrow,endrow,unlog)
+subroutine readrhs(rhs,crhs,startrow,endrow,unlog)
  !stupid to read a vector like that, but it works
  integer(kind=int4),intent(in)::startrow,endrow,unlog
  real(kind=real8),intent(inout)::rhs(:)
+ character(len=*),intent(in)::crhs
 
  integer(kind=int4)::i,j,io,un
  real(kind=real8)::val
+ !$ real(kind=real8)::t1
 
  write(unlog,'(/a)')' Starts to read the rhs'
+ !$ t1=omp_get_wtime()
+
  rhs=0.d0
- open(newunit=un,file='rhs.bin',access='stream',action='read',status='old')!,buffered='yes')
+ open(newunit=un,file=trim(crhs),access='stream',action='read',status='old')!,buffered='yes')
  read(un)i
  i=0
  j=0
@@ -284,7 +291,8 @@ subroutine readrhs(rhs,startrow,endrow,unlog)
   endif
  enddo
  close(un)
- write(unlog,'(a)')' End of reading the rhs'
+
+ !$ write(unlog,'(a,f0.3,a)')' End of reading the rhs (Elapsed time (s): ',omp_get_wtime()-t1,' )'
 
 end subroutine
 
