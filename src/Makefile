@@ -43,10 +43,12 @@ endif
 
 LDFLAGS=
 
+OBJ=modkind.o modprecond.o modpcgcoarray.o
+
 EXEC=prepafile
 
 ifneq ($(COARRAYENABLE),)
- EXEC=pcgrowcoarray
+ EXEC=pcgrowcoarray pcgrowcoarray_r
 endif
 
 all: $(EXEC)
@@ -54,7 +56,10 @@ all: $(EXEC)
 prepafile: modkind.o $(LIBSPARSEROOT)$(LIBSPARSE)/libsparse.a prepafile.f90 
 	$(F90) $(F90FLAGS) $(LDFLAGS) $^ -o $@$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE)/libsparse.a
 
-pcgrowcoarray: modkind.o modpcgcoarray.o pcgrowcoarray.o
+pcgrowcoarray: $(OBJ) pcgrowcoarray.o
+	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(LDFLAGS) $(DEBUG) $^ -o $@$(coarraytype)$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE)/libsparse.a
+
+pcgrowcoarray_r: $(OBJ) pcgrowcoarray_r.o
 	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(LDFLAGS) $(DEBUG) $^ -o $@$(coarraytype)$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE)/libsparse.a
 
 %.o: %.f90

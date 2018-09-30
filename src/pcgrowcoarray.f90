@@ -10,7 +10,7 @@ program  pcgrowcorray
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
  character(len=80)::host,cdummy,cdummy1
  real(kind=real8),allocatable::x(:)[:]
- !$ real(kind=real8)::t1,t2,val
+ !$ real(kind=real8)::t2
  type(crssparse)::crs
  type(crssparse)::crsprecond
 

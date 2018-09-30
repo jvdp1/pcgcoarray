@@ -3,6 +3,7 @@ module modpcgcoarray
  !$ use mkl_service
  use modkind
  use modsparse
+ use modprecond
  implicit none
  private
  public::pcgrowcoarray
@@ -10,10 +11,11 @@ module modpcgcoarray
 contains
 
 !PUBLIC
-subroutine pcgrowcoarray(neq,crs,x,crhs,crsprecond,startrow,endrow,unlog&
+subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
                           ,opmaxit,optol)
  type(crssparse),intent(inout)::crs
- type(crssparse),intent(inout)::crsprecond
+ !type(crssparse),intent(inout)::crsprecond
+ class(*),intent(inout)::precond
  integer(kind=int4),intent(in)::startrow[*],endrow[*]
  integer(kind=int4),intent(in)::unlog,neq
  integer(kind=int4),intent(in),optional::opmaxit
@@ -62,7 +64,8 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,crsprecond,startrow,endrow,unlog&
 
  !check the preconditioner
  write(unlog,'(/a,i0)')' Stats of the preconditioner for image ',thisimage
- call crsprecond%printstats()
+ call initprecond(precond,unlog)
+ !call crsprecond%printstats()
 
  !invert preconditioner
  !do i=1,nrow
@@ -135,7 +138,8 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,crsprecond,startrow,endrow,unlog&
   ! z(i)=precond(i)*r(i)
   !enddo
   !M*z=r
-  call crsprecond%solve(z,r)
+  !call crsprecond%solve(z,r)
+  call solveprecond(precond,z,r,unlog)
 
   !tau=z*r
   tau=0.d0
@@ -343,6 +347,42 @@ subroutine eigensyevd(mat,n,w,leigvectors)
 
 end subroutine
 
+!PRECONDITIONER
+subroutine initprecond(precond,unlog)
+ class(*),intent(inout)::precond
+ integer(kind=int4),intent(in)::unlog
+ 
+ select type(precond)
+  type is(arrayprecond)
+   write(unlog,'(a,i0)')' Size of the diagonal preconditioner: ',precond%dim1
+  type is(crssparse)
+   call precond%printstats()
+  class default
+   write(unlog,'(a)')' ERROR: the proposed type(class) of preconditioner is not supported!'
+   error stop
+ end select
+
+end subroutine
+
+subroutine solveprecond(precond,z,r,unlog)
+ !solve precond*z=r
+ class(*),intent(inout)::precond
+ integer(kind=int4),intent(in)::unlog
+ real(kind=real8),intent(out)::z(:)
+ real(kind=real8),intent(inout)::r(:)
+
+ select type(precond)
+  type is(arrayprecond)
+   call precond%solve(z,r)
+  type is(crssparse)
+   call precond%solve(z,r)
+  class default
+   write(unlog,'(a)')' ERROR: the proposed type(class) of preconditioner is not supported!'
+   error stop
+ end select
+
+end subroutine
+
 !NORM
 function norm(vector,starteq,endeq)
  real(kind=real8),intent(in)::vector(:)
@@ -369,7 +409,7 @@ subroutine readrhs(rhs,crhs,startrow,endrow,unlog)
  real(kind=real8)::val
  !$ real(kind=real8)::t1
 
- write(unlog,'(/a)')' Starts to read the rhs'
+ write(unlog,'(/a)')' Start to read the rhs'
  !$ t1=omp_get_wtime()
 
  rhs=0.d0
@@ -389,7 +429,7 @@ subroutine readrhs(rhs,crhs,startrow,endrow,unlog)
  enddo
  close(un)
 
- !$ write(unlog,'(a,f0.3,a)')' End of reading the rhs (Elapsed time (s): ',omp_get_wtime()-t1,' )'
+ !$ write(unlog,'(a,f0.3,a)')' End of reading the rhs (Elapsed time (s): ',omp_get_wtime()-t1,')'
 
 end subroutine
 
