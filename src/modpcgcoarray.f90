@@ -261,57 +261,7 @@ end subroutine
 
 
 !PRIVATE
-!READ RHS
-subroutine readrhs(rhs,crhs,startrow,endrow,unlog)
- !stupid to read a vector like that, but it works
- integer(kind=int4),intent(in)::startrow,endrow,unlog
- real(kind=real8),intent(inout)::rhs(:)
- character(len=*),intent(in)::crhs
-
- integer(kind=int4)::i,j,io,un
- real(kind=real8)::val
- !$ real(kind=real8)::t1
-
- write(unlog,'(/a)')' Starts to read the rhs'
- !$ t1=omp_get_wtime()
-
- rhs=0.d0
- open(newunit=un,file=trim(crhs),access='stream',action='read',status='old')!,buffered='yes')
- read(un)i
- i=0
- j=0
- do
-  read(un,iostat=io)val
-  if(io.ne.0)exit
-  i=i+1
-  if(i.gt.endrow)exit
-  if(i.ge.startrow)then !.and.i.le.endrow)then
-   j=j+1
-   rhs(j)=val
-  endif
- enddo
- close(un)
-
- !$ write(unlog,'(a,f0.3,a)')' End of reading the rhs (Elapsed time (s): ',omp_get_wtime()-t1,' )'
-
-end subroutine
-
-!NORM
-function norm(vector,starteq,endeq)
- real(kind=real8),intent(in)::vector(:)
- integer(kind=int4),intent(in)::starteq,endeq
- real(kind=real8)::norm
- 
- integer(kind=int4)::i
-
- norm=0.d0
- do i=starteq,endeq
-  norm=norm+vector(i)**2
- enddo
-
-end function
-
-!Condition number
+!CONDITION NUMBER
 subroutine addalphabetatot(T,iter,previousalpha,beta)
  integer(kind=int4),intent(in)::iter
  real(kind=real8),intent(in)::previousalpha,beta
@@ -390,6 +340,56 @@ subroutine eigensyevd(mat,n,w,leigvectors)
  if (info.ne.0) then
   print*,'ERROR info-end: ',info
  endif
+
+end subroutine
+
+!NORM
+function norm(vector,starteq,endeq)
+ real(kind=real8),intent(in)::vector(:)
+ integer(kind=int4),intent(in)::starteq,endeq
+ real(kind=real8)::norm
+ 
+ integer(kind=int4)::i
+
+ norm=0.d0
+ do i=starteq,endeq
+  norm=norm+vector(i)**2
+ enddo
+
+end function
+
+!READ RHS
+subroutine readrhs(rhs,crhs,startrow,endrow,unlog)
+ !stupid to read a vector like that, but it works
+ integer(kind=int4),intent(in)::startrow,endrow,unlog
+ real(kind=real8),intent(inout)::rhs(:)
+ character(len=*),intent(in)::crhs
+
+ integer(kind=int4)::i,j,io,un
+ real(kind=real8)::val
+ !$ real(kind=real8)::t1
+
+ write(unlog,'(/a)')' Starts to read the rhs'
+ !$ t1=omp_get_wtime()
+
+ rhs=0.d0
+ open(newunit=un,file=trim(crhs),access='stream',action='read',status='old')!,buffered='yes')
+ read(un)i
+ i=0
+ j=0
+ do
+  read(un,iostat=io)val
+  if(io.ne.0)exit
+  i=i+1
+  if(i.gt.endrow)exit
+  if(i.ge.startrow)then !.and.i.le.endrow)then
+   j=j+1
+   rhs(j)=val
+  endif
+ enddo
+ close(un)
+
+ !$ write(unlog,'(a,f0.3,a)')' End of reading the rhs (Elapsed time (s): ',omp_get_wtime()-t1,' )'
 
 end subroutine
 
