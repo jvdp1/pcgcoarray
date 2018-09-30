@@ -2,7 +2,7 @@ program  prepafile
  use modkind
  use modsparse
  implicit none
- integer(kind=intc)::io,un,unin,i,j,k,l,m,n,image,numimages=4
+ integer(kind=int4)::io,un,unin,i,j,k,l,m,n,image,numimages=4
  integer(kind=int4)::nia,startrow,startcol,endrow,endcol,ndiag
  integer(kind=int4)::nel
  integer(kind=int4),allocatable::ia(:),ja(:)
