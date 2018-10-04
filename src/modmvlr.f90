@@ -2,6 +2,10 @@ module modmvlr
  !$ use omp_lib
  use modkind
  use modsparse
+#if (COARRAY==1)
+ use modpcgcoarray
+#endif
+
  implicit none
  private
  public::mvlr
@@ -10,7 +14,11 @@ module modmvlr
   real(kind=real8),allocatable::mat(:,:)
  end type
 
+#if (COARRAY==1)
+ type,extends(gen_coeff)::mvlr
+#else
  type::mvlr
+#endif
   private
   integer(kind=int4)::unlog=6
   integer(kind=int4)::nphen,ntrait,neffect,ncov,neq
@@ -45,21 +53,35 @@ function getneq(this) result(neq)
 end function
 
 !**INIT
-subroutine init_mvlr(this,paramfile,unlog)
+subroutine init_mvlr(this,undefined,unlog)
  class(mvlr),intent(inout)::this
- integer(kind=4),intent(in),optional::unlog
- character(len=*),intent(in)::paramfile
+#if (COARRAY==1)
+ class(*),intent(inout)::undefined
+#else
+ character(len=*),intent(in)::undefined
+#endif
+ integer(kind=int4),intent(in),optional::unlog
 
  integer(kind=int4)::i,k,un,io,nsize
  integer(kind=int4),allocatable::itmp(:)
  integer(kind=int8)::i8tmp,maxcombi
  real(kind=real8),allocatable::rtmp(:)
  logical,allocatable::ltmp(:)
+ character(len=100)::paramfile
 
  if(present(unlog))this%unlog=unlog
  
 #if (COARRAY==1)
  write(this%unlog,*)'Image ',this_image(),' #images: ',num_images()
+ select type(undefined)
+  type is(character(len=*))
+   paramfile=undefined
+  class default
+   write(this%unlog,'(a)')' ERROR: the proposed type(class) of preconditioner is not supported!'
+   error stop
+ end select
+#else
+ paramfile=undefined
 #endif
 
  open(newunit=un,file=paramfile,status='old',action='read')
@@ -175,20 +197,18 @@ subroutine multbyv_mvlr(this,x,y,starteq,endeq)
  integer(kind=int4)::i,j,k,address
  real(kind=real8),allocatable::t1(:),t2(:),xmat(:,:),ri(:,:)
  real(kind=real8),allocatable,save::ylong(:)[:]
- !$ real(kind=real8)::time1
+ !$ real(kind=real8)::time1,time2
  
  !$ time1=omp_get_wtime()
  if(.not.allocated(ylong))then
+  !$ time2=omp_get_wtime()
   allocate(ylong(this%neq)[*])
   write(this%unlog,'(a)')' allocation of ylong'
+  !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s) alloc: ',omp_get_wtime()-time2
  endif
 
- !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s) alloc: ',omp_get_wtime()-time1
- !$ time1=omp_get_wtime()
 
  ylong=0_real8
- !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s) ylong: ',omp_get_wtime()-time1
- !$ time1=omp_get_wtime()
  
  sync all
 
@@ -198,10 +218,7 @@ subroutine multbyv_mvlr(this,x,y,starteq,endeq)
  allocate(xmat(this%ntrait,this%neffect),ri(this%ntrait,this%ntrait))
 
  !y=X'*Ri*X*x
- !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s): ',omp_get_wtime()-time1
- !$ time1=omp_get_wtime()
  do i=1,this%nsubphen
-!write(this%unlog,*)'aaaaa',i
   !get X
   call getX(this,xmat,i)
   !get Ri
@@ -229,25 +246,19 @@ subroutine multbyv_mvlr(this,x,y,starteq,endeq)
    enddo
   enddo
  enddo
- !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s) loop: ',omp_get_wtime()-time1
- !$ time1=omp_get_wtime()
 
  deallocate(t1,t2,xmat,ri)
  
  sync all
- !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s): ',omp_get_wtime()-time1
- !$ time1=omp_get_wtime()
 
  !update y
  do i=1,num_images()
   y=y+ylong(starteq:endeq)[i]
  enddo
- !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s): ',omp_get_wtime()-time1
- !$ time1=omp_get_wtime()
 
  sync all
  
- !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s): ',omp_get_wtime()-time1
+ !$ write(this%unlog,'(a,f0.3)')'  Elapsed time(s) multbyv: ',omp_get_wtime()-time1
 
 end subroutine
 

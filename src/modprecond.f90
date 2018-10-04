@@ -1,11 +1,18 @@
 module modprecond
  !$ use omp_lib
  use modkind
+#if (COARRAY==1)
+ use modpcgcoarray
+#endif
  implicit none
  private
  public::arrayprecond
 
+#if (COARRAY==1)
+ type,extends(gen_precond)::arrayprecond
+#else
  type::arrayprecond
+#endif
   integer(kind=int4)::dim1
   real(kind=real8),allocatable::array(:)
  contains

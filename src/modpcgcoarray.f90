@@ -3,17 +3,54 @@ module modpcgcoarray
  !$ use mkl_service
  use modkind
  use modsparse
- use modprecond
  implicit none
  private
  public::pcgrowcoarray
+
+ type,abstract,public::gen_coeff
+  contains
+  private
+  procedure(init_gen),public,deferred::init
+  procedure(multbyv_gen),public,deferred::multbyv
+ end type
+
+ abstract interface
+  subroutine init_gen(this,undefined,unlog)
+   import::gen_coeff,int4
+   class(gen_coeff),intent(inout)::this
+   class(*),intent(inout)::undefined
+   integer(kind=int4),intent(in),optional::unlog
+  end subroutine
+  subroutine multbyv_gen(this,x,y,starteq,endeq)
+   import::gen_coeff,int4,real8
+   class(gen_coeff),intent(inout)::this
+   integer(kind=int4),intent(in)::starteq,endeq
+   real(kind=real8),intent(in)::x(:)
+   real(kind=real8),intent(inout)::y(:)
+  end subroutine
+ end interface
+
+ type,abstract,public::gen_precond
+  contains
+  private
+  procedure(solve_gen),public,deferred::solve
+ end type
+
+ abstract interface
+  subroutine solve_gen(this,x,y)
+   import::gen_precond,real8
+   class(gen_precond),intent(inout)::this
+   real(kind=real8),intent(out)::x(:)
+   real(kind=real8),intent(inout)::y(:)
+  end subroutine
+ end interface
 
 contains
 
 !PUBLIC
 subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
                           ,opmaxit,optol)
- type(crssparse),intent(inout)::crs
+ class(*),intent(inout)::crs
  !type(crssparse),intent(inout)::crsprecond
  class(*),intent(inout)::precond
  integer(kind=int4),intent(in)::startrow[*],endrow[*]
@@ -55,12 +92,14 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
 
  sync all
 
+ nrow=endrow-startrow+1   !crs%getdim(1)
+
  !read rhs
- allocate(rhs(crs%getdim(1)))
+ !allocate(rhs(crs%getdim(1)))
+ allocate(rhs(nrow))
  call readrhs(rhs,crhs,startrow,endrow,unlog)
 
  write(unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
- nrow=crs%getdim(1)
 
  !check the preconditioner
  write(unlog,'(/a,i0)')' Stats of the preconditioner for image ',thisimage
@@ -179,7 +218,8 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
   sync all  !not sure if it is really needed
 
   !w=LHS*p
-  call crs%multbyv(1._real8,'n',p,0._real8,w)
+  !call crs%multbyv(1._real8,'n',p,0._real8,w)
+  call multbyv(crs,p,w,startrow,endrow,unlog)
  
   !alpha=p*w
   if(thisimage.eq.num_images().and.iter.gt.2)call addalphabetatot(T,iter,alpha,beta)
@@ -265,6 +305,27 @@ end subroutine
 
 
 !PRIVATE
+!COEFFICENT MATRIX
+subroutine multbyv(this,p,w,startrow,endrow,unlog)
+ class(*),intent(inout)::this
+ integer(kind=int4),intent(in)::unlog
+ integer(kind=int4),intent(in)::startrow,endrow
+ real(kind=real8),intent(in)::p(:)
+ real(kind=real8),intent(inout)::w(:)
+ 
+
+ select type(this)
+  class is(gen_coeff)
+   call this%multbyv(p,w,startrow,endrow)  
+  type is(crssparse)
+   call this%multbyv(1._real8,'n',p,0._real8,w)
+  class default
+   write(unlog,'(a)')' ERROR: the proposed type(class) of preconditioner is not supported!'
+   error stop
+ end select
+
+end subroutine
+
 !CONDITION NUMBER
 subroutine addalphabetatot(T,iter,previousalpha,beta)
  integer(kind=int4),intent(in)::iter
@@ -353,8 +414,8 @@ subroutine initprecond(precond,unlog)
  integer(kind=int4),intent(in)::unlog
  
  select type(precond)
-  type is(arrayprecond)
-   write(unlog,'(a,i0)')' Size of the diagonal preconditioner: ',precond%dim1
+  class is(gen_precond)
+   write(unlog,'(a,i0)')' Preconditioner of class gen_precond'
   type is(crssparse)
    call precond%printstats()
   class default
@@ -372,7 +433,7 @@ subroutine solveprecond(precond,z,r,unlog)
  real(kind=real8),intent(inout)::r(:)
 
  select type(precond)
-  type is(arrayprecond)
+  class is(gen_precond)
    call precond%solve(z,r)
   type is(crssparse)
    call precond%solve(z,r)
