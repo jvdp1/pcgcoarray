@@ -1,22 +1,19 @@
-program  pcgrowcorray_mvlr
+program  pcgrowcorray_r
  !$ use omp_lib
- !$ use mkl_service
  use modkind
  use modsparse
  use modpcgcoarray
  use modprecond
- use modmvlr
  implicit none
  integer(kind=int4)::thisimage,unlog
  integer(kind=int4)::neq
- integer(kind=int4)::un
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
- character(len=80)::host,cdummy
- real(kind=real8),allocatable::array(:)
+ character(len=80)::host,cdummy,cdummy1
  real(kind=real8),allocatable::x(:)[:]
  !$ real(kind=real8)::t2
- type(arrayprecond)::precond
- type(mvlr)::reg
+ type(arrayprecond)::crsprecond
+ type(crssparse)::crs
+ type(crssparse)::crssubtmp
 
  !$ t2=omp_get_wtime() 
 
@@ -36,7 +33,6 @@ program  pcgrowcorray_mvlr
  !$ write(unlog,'(" Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
  !$omp end master
  !$omp end parallel
- !$ write(unlog,'(" Number of threads for MKL   : ",i0)')mkl_get_max_threads() 
 
  !read the parameter file on image 1
  if(thisimage.eq.1)then
@@ -46,24 +42,20 @@ program  pcgrowcorray_mvlr
  sync all
 
  !Reads the matrix
- cdummy='parammvlr.dat'
- call reg%init(cdummy,unlog)
+ cdummy1='crs_subpcg.row'//adjustl(cdummy(:len_trim(cdummy)))
+ crs=crssparse(cdummy1,unlog)
+ call crs%printstats()
 
- neq=reg%getneq()
-
+ neq=crs%getdim(2)
 
  !create preconditioner
- write(unlog,'(/a)')' Extraction of the diagonal elements...'
+  write(unlog,'(/a)')' Extraction of the diagonal elements...'
+  crsprecond%dim1=endrow-startrow+1
+  crssubtmp=crs%submatrix(1,crsprecond%dim1,startrow,endrow,lupper=.true.,unlog=unlog)
+  call crssubtmp%printstats()
 
- precond%dim1=endrow-startrow+1
- allocate(precond%array(precond%dim1))
- open(newunit=un,file='precond.stream',access='stream',status='old',action='read')
- read(un)neq
- allocate(array(neq))
- read(un)array
- close(un)
- precond%array=array(startrow:endrow)
- deallocate(array)
+  crsprecond%array=crssubtmp%diag()
+  call crssubtmp%destroy()
 
  !solution vector
  allocate(x(neq)[*])
@@ -71,9 +63,10 @@ program  pcgrowcorray_mvlr
 
  sync all
 
- call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
+ call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
 
  sync all
+
 
  if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
 

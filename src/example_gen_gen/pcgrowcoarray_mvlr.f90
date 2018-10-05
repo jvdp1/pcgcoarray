@@ -1,18 +1,20 @@
-program  pcgrowcorray
+program  pcgrowcorray_mvlr
  !$ use omp_lib
- !$ use mkl_service
  use modkind
- use modsparse
  use modpcgcoarray
+ use modprecond
+ use modmvlr
  implicit none
  integer(kind=int4)::thisimage,unlog
  integer(kind=int4)::neq
+ integer(kind=int4)::un
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
- character(len=80)::host,cdummy,cdummy1
+ character(len=80)::host,cdummy
+ real(kind=real8),allocatable::array(:)
  real(kind=real8),allocatable::x(:)[:]
  !$ real(kind=real8)::t2
- type(crssparse)::crs
- type(crssparse)::crsprecond
+ type(arrayprecond)::precond
+ type(mvlr)::reg
 
  !$ t2=omp_get_wtime() 
 
@@ -32,7 +34,6 @@ program  pcgrowcorray
  !$ write(unlog,'(" Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
  !$omp end master
  !$omp end parallel
- !$ write(unlog,'(" Number of threads for MKL   : ",i0)')mkl_get_max_threads() 
 
  !read the parameter file on image 1
  if(thisimage.eq.1)then
@@ -42,16 +43,24 @@ program  pcgrowcorray
  sync all
 
  !Reads the matrix
- cdummy1='crs_subpcg.row'//adjustl(cdummy(:len_trim(cdummy)))
- crs=crssparse(cdummy1,unlog)
- call crs%printstats()
+ cdummy='parammvlr.dat'
+ call reg%init(cdummy,unlog)
 
- neq=crs%getdim(2)
+ neq=reg%getneq()
+
 
  !create preconditioner
- cdummy1='crs_precond.row'//adjustl(cdummy(:len_trim(cdummy)))
- crsprecond=crssparse(cdummy1,unlog)
- call crsprecond%printstats()
+ write(unlog,'(/a)')' Extraction of the diagonal elements...'
+
+ precond%dim1=endrow-startrow+1
+ allocate(precond%array(precond%dim1))
+ open(newunit=un,file='precond.stream',access='stream',status='old',action='read')
+ read(un)neq
+ allocate(array(neq))
+ read(un)array
+ close(un)
+ precond%array=array(startrow:endrow)
+ deallocate(array)
 
  !solution vector
  allocate(x(neq)[*])
@@ -59,10 +68,9 @@ program  pcgrowcorray
 
  sync all
 
- call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
+ call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
 
  sync all
-
 
  if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
 
