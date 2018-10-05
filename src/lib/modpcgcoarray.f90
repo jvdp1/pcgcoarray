@@ -1,6 +1,5 @@
 module modpcgcoarray
  !$ use omp_lib
- !$ use mkl_service
  use modkind
  use modsparse
  implicit none
@@ -84,7 +83,6 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
  !$ write(unlog,'(" Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
  !$omp end master
  !$omp end parallel
- !$ write(unlog,'(" Number of threads for MKL   : ",i0)')mkl_get_max_threads() 
 
  !optional arguments
  if(present(opmaxit))maxit=opmaxit
