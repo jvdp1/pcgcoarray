@@ -1,9 +1,9 @@
-program  pcgrowcorray
+program  pcgrowcorray_r
  !$ use omp_lib
- !$ use mkl_service
  use modkind
  use modsparse
  use modpcgcoarray
+ use modprecond
  implicit none
  integer(kind=int4)::thisimage,unlog
  integer(kind=int4)::neq
@@ -11,8 +11,9 @@ program  pcgrowcorray
  character(len=80)::host,cdummy,cdummy1
  real(kind=real8),allocatable::x(:)[:]
  !$ real(kind=real8)::t2
+ type(arrayprecond)::crsprecond
  type(crssparse)::crs
- type(crssparse)::crsprecond
+ type(crssparse)::crssubtmp
 
  !$ t2=omp_get_wtime() 
 
@@ -32,7 +33,6 @@ program  pcgrowcorray
  !$ write(unlog,'(" Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
  !$omp end master
  !$omp end parallel
- !$ write(unlog,'(" Number of threads for MKL   : ",i0)')mkl_get_max_threads() 
 
  !read the parameter file on image 1
  if(thisimage.eq.1)then
@@ -49,9 +49,13 @@ program  pcgrowcorray
  neq=crs%getdim(2)
 
  !create preconditioner
- cdummy1='crs_precond.row'//adjustl(cdummy(:len_trim(cdummy)))
- crsprecond=crssparse(cdummy1,unlog)
- call crsprecond%printstats()
+  write(unlog,'(/a)')' Extraction of the diagonal elements...'
+  crsprecond%dim1=endrow-startrow+1
+  crssubtmp=crs%submatrix(1,crsprecond%dim1,startrow,endrow,lupper=.true.,unlog=unlog)
+  call crssubtmp%printstats()
+
+  crsprecond%array=crssubtmp%diag()
+  call crssubtmp%destroy()
 
  !solution vector
  allocate(x(neq)[*])
