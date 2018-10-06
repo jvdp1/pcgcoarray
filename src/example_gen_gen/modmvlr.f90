@@ -53,13 +53,9 @@ function getneq(this) result(neq)
 end function
 
 !**INIT
-subroutine init_mvlr(this,undefined,unlog)
+subroutine init_mvlr(this,paramfile,unlog)
  class(mvlr),intent(inout)::this
-#if (COARRAY==1)
- class(*),intent(inout)::undefined
-#else
- character(len=*),intent(in)::undefined
-#endif
+ character(len=*),intent(in)::paramfile
  integer(kind=int4),intent(in),optional::unlog
 
  integer(kind=int4)::i,k,un,io,nsize
@@ -67,23 +63,9 @@ subroutine init_mvlr(this,undefined,unlog)
  integer(kind=int8)::i8tmp,maxcombi
  real(kind=real8),allocatable::rtmp(:)
  logical,allocatable::ltmp(:)
- character(len=100)::paramfile
 
  if(present(unlog))this%unlog=unlog
  
-#if (COARRAY==1)
- write(this%unlog,*)'Image ',this_image(),' #images: ',num_images()
- select type(undefined)
-  type is(character(len=*))
-   paramfile=undefined
-  class default
-   write(this%unlog,'(a)')' ERROR: the proposed type(class) of preconditioner is not supported!'
-   error stop
- end select
-#else
- paramfile=undefined
-#endif
-
  open(newunit=un,file=paramfile,status='old',action='read')
  read(un,*)this%datafile
  read(un,*)this%nphen

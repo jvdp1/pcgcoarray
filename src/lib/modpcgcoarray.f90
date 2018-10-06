@@ -5,21 +5,15 @@ module modpcgcoarray
  implicit none
  private
  public::pcgrowcoarray
+ public::gen_coeff,gen_precond
 
- type,abstract,public::gen_coeff
+ type,abstract::gen_coeff
   contains
   private
-  procedure(init_gen),public,deferred::init
   procedure(multbyv_gen),public,deferred::multbyv
  end type
 
  abstract interface
-  subroutine init_gen(this,undefined,unlog)
-   import::gen_coeff,int4
-   class(gen_coeff),intent(inout)::this
-   class(*),intent(inout)::undefined
-   integer(kind=int4),intent(in),optional::unlog
-  end subroutine
   subroutine multbyv_gen(this,x,y,starteq,endeq)
    import::gen_coeff,int4,real8
    class(gen_coeff),intent(inout)::this
@@ -29,7 +23,7 @@ module modpcgcoarray
   end subroutine
  end interface
 
- type,abstract,public::gen_precond
+ type,abstract::gen_precond
   contains
   private
   procedure(solve_gen),public,deferred::solve
@@ -50,7 +44,6 @@ contains
 subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
                           ,opmaxit,optol)
  class(*),intent(inout)::crs
- !type(crssparse),intent(inout)::crsprecond
  class(*),intent(inout)::precond
  integer(kind=int4),intent(in)::startrow[*],endrow[*]
  integer(kind=int4),intent(in)::unlog,neq
@@ -90,25 +83,14 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
 
  sync all
 
- nrow=endrow-startrow+1   !crs%getdim(1)
+ nrow=endrow-startrow+1
 
  !read rhs
- !allocate(rhs(crs%getdim(1)))
  allocate(rhs(nrow))
  call readrhs(rhs,crhs,startrow,endrow,unlog)
 
  write(unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
 
- !check the preconditioner
- write(unlog,'(/a,i0)')' Stats of the preconditioner for image ',thisimage
- call initprecond(precond,unlog)
- !call crsprecond%printstats()
-
- !invert preconditioner
- !do i=1,nrow
- ! if(precond(i).ne.0)precond(i)=1.d0/precond(i)
- !enddo
- 
  !Initialistion PCG arrays
  allocate(z(nrow),w(nrow),r(nrow))
  allocate(p(neq)[*])
@@ -175,7 +157,6 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
   ! z(i)=precond(i)*r(i)
   !enddo
   !M*z=r
-  !call crsprecond%solve(z,r)
   call solveprecond(precond,z,r,unlog)
 
   !tau=z*r
@@ -216,7 +197,6 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
   sync all  !not sure if it is really needed
 
   !w=LHS*p
-  !call crs%multbyv(1._real8,'n',p,0._real8,w)
   call multbyv(crs,p,w,startrow,endrow,unlog)
  
   !alpha=p*w
@@ -263,11 +243,11 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
 
   conv=resvec1/b_norm
 
- if(thisimage.eq.1)then
-  write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,1x,e12.5)')iter,conv,resvec1
- endif
+  if(thisimage.eq.1)then
+   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,1x,e12.5)')iter,conv,resvec1
+  endif
 
- iter=iter+1
+  iter=iter+1
 
  enddo
  !$ if(thisimage.eq.1)then
@@ -407,22 +387,6 @@ subroutine eigensyevd(mat,n,w,leigvectors)
 end subroutine
 
 !PRECONDITIONER
-subroutine initprecond(precond,unlog)
- class(*),intent(inout)::precond
- integer(kind=int4),intent(in)::unlog
- 
- select type(precond)
-  class is(gen_precond)
-   write(unlog,'(a,i0)')' Preconditioner of class gen_precond'
-  type is(crssparse)
-   call precond%printstats()
-  class default
-   write(unlog,'(a)')' ERROR: the proposed type(class) of preconditioner is not supported!'
-   error stop
- end select
-
-end subroutine
-
 subroutine solveprecond(precond,z,r,unlog)
  !solve precond*z=r
  class(*),intent(inout)::precond
