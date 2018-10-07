@@ -54,10 +54,10 @@ module modpcgcoarray
   module procedure constructor_solver
  end interface
 
-
 contains
 
 !PUBLIC
+!**CONSTRUCTOR
 function constructor_solver(neq,maxit,tol,unlog) result(this)
  type(solver)::this
  integer(kind=int4),intent(in)::neq
@@ -77,6 +77,7 @@ function constructor_solver(neq,maxit,tol,unlog) result(this)
 
 end function
 
+!**PCG
 subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  class(solver),intent(inout)::this
  class(*),intent(inout)::crs
@@ -309,7 +310,7 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
 
 end subroutine
 
-!FINAL
+!**FINAL
 subroutine destroy_solver(this)
  type(solver),intent(inout)::this
 
