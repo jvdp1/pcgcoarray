@@ -70,7 +70,9 @@ program  pcgrowcorray_mvlr
  sync all
 
  !call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
- pcg=solver(neq,unlog=unlog)
+! pcg=solver('chebyshev',neq,unlog=unlog)
+! call pcg%seteigenvalues(1._real8,7._real8)
+ pcg=solver('pcg',neq,unlog=unlog)
  call pcg%solve(reg,x,'rhs.bin',precond,startrow,endrow)
 
  sync all

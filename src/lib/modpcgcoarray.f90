@@ -44,9 +44,12 @@ module modpcgcoarray
   integer(kind=int4)::unlog
   integer(kind=int4)::maxit
   real(kind=real8)::tol
+  real(kind=real8)::smalleigenval,largeeigenval
+  character(len=20)::selectedsolver
+  procedure(itersolve_gen),public,pointer::solve=>null()
   contains
   private
-  procedure::solve=>pcgrowcoarray
+  procedure,public::seteigenvalues
   final::destroy_solver
  end type
  
@@ -54,15 +57,45 @@ module modpcgcoarray
   module procedure constructor_solver
  end interface
 
+ abstract interface
+  subroutine itersolve_gen(this,lhs,x,crhs,precond,startrow,endrow)
+   import::solver,int4,real8
+   class(solver),intent(inout)::this
+   class(*),intent(inout)::lhs
+   class(*),intent(inout)::precond
+   integer(kind=int4),intent(in)::startrow[*],endrow[*]
+   real(kind=real8),intent(inout)::x(:)[*]
+   character(len=*),intent(in)::crhs
+  end subroutine
+ end interface
+
 contains
 
 !PUBLIC
 !**CONSTRUCTOR
-function constructor_solver(neq,maxit,tol,unlog) result(this)
+function constructor_solver(selectedsolver,neq,maxit,tol,unlog) result(this)
  type(solver)::this
  integer(kind=int4),intent(in)::neq
  integer(kind=int4),intent(in),optional::maxit,unlog
  real(kind=int8),intent(in),optional::tol
+ character(len=*)::selectedsolver
+
+ this%unlog=6
+ if(present(unlog))this%unlog=unlog
+
+ !should put a check to be sure that the same solver is requested for all images
+ select case(selectedsolver)
+  case('chebyshev','CHEBYSHEV')
+   this%selectedsolver='CHEBYSHEV'
+   this%solve=>chebyshevrowcoarray
+  case('pcg','PCG')
+   this%selectedsolver='PCG'
+   this%solve=>pcgrowcoarray
+  case default
+   write(this%unlog,'(a)')' ERROR: wrong selected solver!'
+   error stop
+ end select
+ write(this%unlog,'(/2a)')' Solver selected: ',trim(this%selectedsolver)
 
  this%neq=neq
  
@@ -72,10 +105,208 @@ function constructor_solver(neq,maxit,tol,unlog) result(this)
  this%tol=1.e-6
  if(present(tol))this%tol=tol
  
- this%unlog=6
- if(present(unlog))this%unlog=unlog
+ this%smalleigenval=0._real8
+ this%largeeigenval=0._real8
 
 end function
+
+!**CHEBYSHEV
+subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
+ class(solver),intent(inout)::this
+ class(*),intent(inout)::crs
+ class(*),intent(inout)::precond
+ integer(kind=int4),intent(in)::startrow[*],endrow[*]
+ real(kind=real8),intent(inout)::x(:)[*]
+ character(len=*),intent(in)::crhs
+
+ integer(kind=int4)::thisimage,unconv
+ integer(kind=int4)::i,j,k,nrow,iter
+ integer(kind=int4)::startrowk
+ real(kind=real8)::conv,thr,beta
+ real(kind=real8)::cvalue,dvalue
+ real(kind=real8),allocatable::b_norm[:],resvec1[:],alpha[:]
+ real(kind=real8),allocatable::rhs(:)
+ real(kind=real8),allocatable::z(:),r(:),w(:)
+ real(kind=real8),allocatable::p(:)[:]
+ !$ real(kind=real8)::t1,t2,val
+
+ !$ t2=omp_get_wtime() 
+
+ thisimage=this_image()
+
+ write(this%unlog,'(//a,i0,a)')' **Start image ',thisimage,' of the CHEBYSHEV Coarray subroutine...'
+
+ write(this%unlog,'(/" Number of images            : ",i0)')num_images()
+ !$omp parallel
+ !$omp master
+ !$ write(this%unlog,'(" Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
+ !$omp end master
+ !$omp end parallel
+
+ !check provided eigenvalues
+ if(this%smalleigenval.eq.0._real8.or.this%largeeigenval.eq.0._real8)then
+  write(this%unlog,'(a)')' ERROR: Wrong eigenvalues for the CHEBYSHEV solver!'
+  error stop
+ endif
+
+ sync all
+
+ nrow=endrow-startrow+1
+
+ !read rhs
+ allocate(rhs(nrow))
+ call readrhs(rhs,crhs,startrow,endrow,this%unlog)
+
+ write(this%unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
+
+ !Initialistion PCG arrays
+ allocate(z(nrow),w(nrow),r(nrow))
+ allocate(p(this%neq)[*])
+ r=0._real8;p=0._real8;z=0._real8;w=0._real8
+
+ !initiatilisation of r
+ allocate(b_norm[*],resvec1[*],alpha[*])
+
+ if(sum(x).eq.0._real8)then
+  r=rhs
+ else
+  print*,'not yet implemented'
+  error stop
+ endif
+
+ b_norm=norm(rhs,1,nrow)
+ resvec1=norm(r,1,nrow)
+
+ sync all
+
+ !update on all images
+ !1. update on image 1
+ if(thisimage.eq.1)then
+  do i=2,num_images()
+   !receives updates from other for its own image
+   b_norm=b_norm+b_norm[i]
+   resvec1=resvec1+resvec1[i]
+  enddo
+ endif
+ sync all
+ !2. update on the other image
+ if(thisimage.ne.1)then
+  b_norm=b_norm[1]
+  resvec1=resvec1[1]
+ endif
+ sync all  !not sure if it is really needed
+
+ conv=resvec1/b_norm
+
+ write(this%unlog,'(/a,i0)')' Start iterating for image ',thisimage
+
+ write(this%unlog,'(/a,e15.5)')' Norm of RHS: ',b_norm
+ if(thisimage.eq.1)then
+  open(newunit=unconv,file='convergence.dat',status='replace',action='write')
+  write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,1x,e12.5)')1,conv,0.
+ endif
+
+ dvalue=(this%largeeigenval+this%smalleigenval)/2._real8
+ cvalue=(this%largeeigenval-this%smalleigenval)/2._real8
+
+ alpha=0._real8
+ iter=2
+ thr=this%tol*b_norm
+
+ !Start iteration
+ !$ t1=omp_get_wtime() 
+ startrowk=startrow-1
+ do while(resvec1.gt.thr.and.iter.le.this%maxit)
+  !M*z=r
+  call solveprecond(precond,z,r,this%unlog)
+
+  beta=(cvalue*alpha/2._real8)**2
+  alpha=1._real8/(dvalue-beta)
+
+  !p=z+beta*p
+  do i=startrow,endrow
+   p(i)=z(i-startrowk)+beta*p(i)
+  enddo
+
+  sync all
+  do i=1,num_images()
+   if(i.ne.thisimage)then
+    !receives updates from other for its own image
+    j=startrow[i]
+    k=endrow[i]
+    p(j:k)=p(j:k)[i]
+   endif
+  enddo
+  sync all  !not sure if it is really needed
+
+  do i=startrow,endrow
+   x(i)=x(i)+alpha*p(i)
+  enddo
+
+  !w=LHS*p
+  call multbyv(crs,p,w,startrow,endrow,this%unlog)
+
+  do i=1,nrow
+   r(i)=r(i)-alpha*w(i)
+  enddo
+
+  resvec1=norm(r,1,nrow)
+
+  !update resvec1
+  sync all
+  if(thisimage.eq.1)then
+   do i=2,num_images()
+    !receives updates from other for its own image
+    resvec1=resvec1+resvec1[i]
+   enddo
+  endif
+  sync all
+  !2. update on the other image
+  if(thisimage.ne.1)resvec1=resvec1[1]
+
+  conv=resvec1/b_norm
+
+  if(thisimage.eq.1)then
+   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,1x,e12.5)')iter,conv,resvec1
+  endif
+
+  iter=iter+1
+
+ enddo
+ !$ if(thisimage.eq.1)then
+ !$  val=omp_get_wtime()-t1
+ !$  write(this%unlog,'(/"  Wall clock time for the iterative process (seconds): ",f12.2)')val
+ !$  write(this%unlog,'("  Approximate wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
+ !$ endif
+
+ if(thisimage.eq.1)close(unconv)
+
+ sync all
+
+ if(thisimage.eq.1)then
+  do i=2,num_images()
+   !receives updates from other for its own image
+   j=startrow[i]
+   k=endrow[i]
+   x(j:k)=x(j:k)+x(j:k)[i]
+  enddo
+ endif
+
+ sync all     !needed to wait for the update   ==>  probably better to use sync images
+
+ write(this%unlog,'(/a,i0,a)')' **End image ',thisimage,' of the PCG Coarray subroutine...'
+ !$ write(this%unlog,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
+
+end subroutine
+
+subroutine seteigenvalues(this,small,large)
+ class(solver),intent(inout)::this
+ real(kind=real8),intent(in)::small,large
+
+ this%smalleigenval=small
+ this%largeeigenval=large
+
+end subroutine
 
 !**PCG
 subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
@@ -123,14 +354,14 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  !Initialistion PCG arrays
  allocate(z(nrow),w(nrow),r(nrow))
  allocate(p(this%neq)[*])
- r=0.d0;p=0.d0;z=0.d0;w=0.d0
+ r=0._real8;p=0._real8;z=0._real8;w=0._real8
 
- oldtau=1.d0
+ oldtau=1._real8
 
  !initiatilisation of r
  allocate(b_norm[*],resvec1[*],alpha[*],tau[*])
 
- if(sum(x).eq.0.d0)then
+ if(sum(x).eq.0._real8)then
   r=rhs
  else
   print*,'not yet implemented'
@@ -170,10 +401,10 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  endif
 
  if(thisimage.eq.num_images())then
-  allocate(T(this%maxit,this%maxit));T=0.d0
+  allocate(T(this%maxit,this%maxit));T=0._real8
  endif
 
- alpha=1.d0
+ alpha=1._real8
  iter=2
  thr=this%tol*b_norm
 
@@ -189,7 +420,7 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   call solveprecond(precond,z,r,this%unlog)
 
   !tau=z*r
-  tau=0.d0
+  tau=0._real8
   do i=1,nrow
    tau=tau+z(i)*r(i)
   enddo
@@ -231,7 +462,7 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   !alpha=p*w
   if(thisimage.eq.num_images().and.iter.gt.2)call addalphabetatot(T,iter,alpha,beta)
 
-  alpha=0.d0
+  alpha=0._real8
   do i=1,nrow
    alpha=alpha+p(startrowk+i)*w(i)
   enddo
@@ -303,6 +534,12 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
    x(j:k)=x(j:k)+x(j:k)[i]
   enddo
  endif
+! if(thisimage.ne.1)then
+!   j=startrow
+!   k=endrow
+!   x(j:k)[1]=x(j:k)[1]+x(j:k)
+! endif
+
  sync all     !needed to wait for the update   ==>  probably better to use sync images
 
  write(this%unlog,'(/a,i0,a)')' **End image ',thisimage,' of the PCG Coarray subroutine...'
@@ -319,6 +556,8 @@ subroutine destroy_solver(this)
  this%maxit=10000
  this%tol=1.e-6
  this%unlog=6
+ this%smalleigenval=0_real8
+ this%largeeigenval=0_real8
 
 end subroutine
 
