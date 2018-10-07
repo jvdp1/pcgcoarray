@@ -15,6 +15,7 @@ program  pcgrowcorray_mvlr
  !$ real(kind=real8)::t2
  type(arrayprecond)::precond
  type(mvlr)::reg
+ type(solver)::pcg
 
  !$ t2=omp_get_wtime() 
 
@@ -68,7 +69,9 @@ program  pcgrowcorray_mvlr
 
  sync all
 
- call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
+ !call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
+ pcg=solver(neq,unlog=unlog)
+ call pcg%solve(reg,x,'rhs.bin',precond,startrow,endrow)
 
  sync all
 

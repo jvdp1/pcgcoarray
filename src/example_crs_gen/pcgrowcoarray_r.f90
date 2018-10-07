@@ -14,6 +14,7 @@ program  pcgrowcorray_r
  type(arrayprecond)::crsprecond
  type(crssparse)::crs
  type(crssparse)::crssubtmp
+ type(solver)::pcg
 
  !$ t2=omp_get_wtime() 
 
@@ -63,10 +64,11 @@ program  pcgrowcorray_r
 
  sync all
 
- call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
+ !call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
+ pcg=solver(neq,unlog=unlog)
+ call pcg%solve(crs,x,'rhs.bin',crsprecond,startrow,endrow)
 
  sync all
-
 
  if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
 

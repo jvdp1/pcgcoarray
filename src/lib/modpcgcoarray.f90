@@ -4,7 +4,7 @@ module modpcgcoarray
  use modsparse
  implicit none
  private
- public::pcgrowcoarray
+ public::solver
  public::gen_coeff,gen_precond
 
  type,abstract::gen_coeff
@@ -38,24 +38,56 @@ module modpcgcoarray
   end subroutine
  end interface
 
+ type::solver
+  private
+  integer(kind=int4)::neq=-9
+  integer(kind=int4)::unlog
+  integer(kind=int4)::maxit
+  real(kind=real8)::tol
+  contains
+  private
+  procedure::solve=>pcgrowcoarray
+  final::destroy_solver
+ end type
+ 
+ interface solver
+  module procedure constructor_solver
+ end interface
+
+
 contains
 
 !PUBLIC
-subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
-                          ,opmaxit,optol)
+function constructor_solver(neq,maxit,tol,unlog) result(this)
+ type(solver)::this
+ integer(kind=int4),intent(in)::neq
+ integer(kind=int4),intent(in),optional::maxit,unlog
+ real(kind=int8),intent(in),optional::tol
+
+ this%neq=neq
+ 
+ this%maxit=10000
+ if(present(maxit))this%maxit=maxit
+ 
+ this%tol=1.e-6
+ if(present(tol))this%tol=tol
+ 
+ this%unlog=6
+ if(present(unlog))this%unlog=unlog
+
+end function
+
+subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
+ class(solver),intent(inout)::this
  class(*),intent(inout)::crs
  class(*),intent(inout)::precond
  integer(kind=int4),intent(in)::startrow[*],endrow[*]
- integer(kind=int4),intent(in)::unlog,neq
- integer(kind=int4),intent(in),optional::opmaxit
  real(kind=real8),intent(inout)::x(:)[*]
- real(kind=real8),intent(in),optional::optol
  character(len=*),intent(in)::crhs
 
  integer(kind=int4)::thisimage,unconv
  integer(kind=int4)::i,j,k,nrow,iter
- integer(kind=int4)::startrowk,maxit=10000
- real(kind=real8)::tol=1.e-12
+ integer(kind=int4)::startrowk
  real(kind=real8)::oldtau,conv,thr,beta
  real(kind=real8),allocatable::b_norm[:],resvec1[:],alpha[:],tau[:]
  real(kind=real8),allocatable::rhs(:)!,precond(:)
@@ -68,18 +100,14 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
 
  thisimage=this_image()
 
- write(unlog,'(//a,i0,a)')' **Start image ',thisimage,' of the PCG Coarray subroutine...'
+ write(this%unlog,'(//a,i0,a)')' **Start image ',thisimage,' of the PCG Coarray subroutine...'
 
- write(unlog,'(/" Number of images            : ",i0)')num_images()
+ write(this%unlog,'(/" Number of images            : ",i0)')num_images()
  !$omp parallel
  !$omp master
- !$ write(unlog,'(" Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
+ !$ write(this%unlog,'(" Number of threads for OpenMP: ",i0)')omp_get_num_threads() 
  !$omp end master
  !$omp end parallel
-
- !optional arguments
- if(present(opmaxit))maxit=opmaxit
- if(present(optol))tol=optol
 
  sync all
 
@@ -87,13 +115,13 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
 
  !read rhs
  allocate(rhs(nrow))
- call readrhs(rhs,crhs,startrow,endrow,unlog)
+ call readrhs(rhs,crhs,startrow,endrow,this%unlog)
 
- write(unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
+ write(this%unlog,'(/a,i0)')' Preparation for the PCG for image ',thisimage
 
  !Initialistion PCG arrays
  allocate(z(nrow),w(nrow),r(nrow))
- allocate(p(neq)[*])
+ allocate(p(this%neq)[*])
  r=0.d0;p=0.d0;z=0.d0;w=0.d0
 
  oldtau=1.d0
@@ -132,32 +160,32 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
 
  conv=resvec1/b_norm
 
- write(unlog,'(/a,i0)')' Start iterating for image ',thisimage
+ write(this%unlog,'(/a,i0)')' Start iterating for image ',thisimage
 
- write(unlog,'(/a,e15.5)')' Norm of RHS: ',b_norm
+ write(this%unlog,'(/a,e15.5)')' Norm of RHS: ',b_norm
  if(thisimage.eq.1)then
   open(newunit=unconv,file='convergence.dat',status='replace',action='write')
   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,1x,e12.5)')1,conv,0.
  endif
 
  if(thisimage.eq.num_images())then
-  allocate(T(maxit,maxit));T=0.d0
+  allocate(T(this%maxit,this%maxit));T=0.d0
  endif
 
  alpha=1.d0
  iter=2
- thr=tol*b_norm
+ thr=this%tol*b_norm
 
  !Start iteration
  !$ t1=omp_get_wtime() 
  startrowk=startrow-1
- do while(resvec1.gt.thr.and.iter.le.maxit)
+ do while(resvec1.gt.thr.and.iter.le.this%maxit)
   !z=Mi*r
   !do i=1,nrow
   ! z(i)=precond(i)*r(i)
   !enddo
   !M*z=r
-  call solveprecond(precond,z,r,unlog)
+  call solveprecond(precond,z,r,this%unlog)
 
   !tau=z*r
   tau=0.d0
@@ -197,7 +225,7 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
   sync all  !not sure if it is really needed
 
   !w=LHS*p
-  call multbyv(crs,p,w,startrow,endrow,unlog)
+  call multbyv(crs,p,w,startrow,endrow,this%unlog)
  
   !alpha=p*w
   if(thisimage.eq.num_images().and.iter.gt.2)call addalphabetatot(T,iter,alpha,beta)
@@ -252,15 +280,15 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
  enddo
  !$ if(thisimage.eq.1)then
  !$  val=omp_get_wtime()-t1
- !$  write(unlog,'(/"  Wall clock time for the iterative process (seconds): ",f12.2)')val
- !$  write(unlog,'("  Approximate wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
+ !$  write(this%unlog,'(/"  Wall clock time for the iterative process (seconds): ",f12.2)')val
+ !$  write(this%unlog,'("  Approximate wall clock time per iteration (seconds): ",f12.2)')val/(iter-1)
  !$ endif
 
  if(thisimage.eq.1)close(unconv)
 
  if(thisimage.eq.num_images())then
   !Estimation of eigenvalues and condition number
-  if(iter>3)call eigenvalandcondnumber(T,iter,unlog)
+  if(iter>3)call eigenvalandcondnumber(T,iter,this%unlog)
   deallocate(T)
  endif
 
@@ -276,11 +304,22 @@ subroutine pcgrowcoarray(neq,crs,x,crhs,precond,startrow,endrow,unlog&
  endif
  sync all     !needed to wait for the update   ==>  probably better to use sync images
 
- write(unlog,'(/a,i0,a)')' **End image ',thisimage,' of the PCG Coarray subroutine...'
- !$ write(unlog,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
+ write(this%unlog,'(/a,i0,a)')' **End image ',thisimage,' of the PCG Coarray subroutine...'
+ !$ write(this%unlog,'("   Wall clock time: ",f12.2)')omp_get_wtime()-t2
 
 end subroutine
 
+!FINAL
+subroutine destroy_solver(this)
+ type(solver),intent(inout)::this
+
+ this%neq=-9
+ 
+ this%maxit=10000
+ this%tol=1.e-6
+ this%unlog=6
+
+end subroutine
 
 !PRIVATE
 !COEFFICENT MATRIX
@@ -418,6 +457,7 @@ function norm(vector,starteq,endeq)
  do i=starteq,endeq
   norm=norm+vector(i)**2
  enddo
+ norm=sqrt(norm)
 
 end function
 
