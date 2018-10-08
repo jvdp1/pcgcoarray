@@ -3,7 +3,7 @@ program  pcgrowcorray_r
  use modkind
  use modsparse
  use modcoarraysolver
- use modprecond
+ use modmyprecond
  implicit none
  integer(kind=int4)::thisimage,unlog
  integer(kind=int4)::neq

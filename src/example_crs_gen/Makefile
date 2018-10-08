@@ -35,7 +35,7 @@ else
 endif
 
 ifneq ($(COARRAYENABLE),)
- OBJ=modprecond.o
+ OBJ=modmyprecond.o
  EXEC=pcgrowcoarray_r
 endif
 

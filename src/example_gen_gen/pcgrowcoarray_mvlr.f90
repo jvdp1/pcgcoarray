@@ -2,7 +2,7 @@ program  pcgrowcorray_mvlr
  !$ use omp_lib
  use modkind
  use modcoarraysolver
- use modprecond
+ use modmyprecond
  use modmvlr
  implicit none
  integer(kind=int4)::thisimage,unlog

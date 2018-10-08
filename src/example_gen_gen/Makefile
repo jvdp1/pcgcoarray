@@ -36,7 +36,7 @@ endif
 
 OBJ=modmvlr.o
 ifneq ($(COARRAYENABLE),)
- OBJ+=modprecond.o
+ OBJ+=modmyprecond.o
 endif
 
 EXEC=prepamvlr

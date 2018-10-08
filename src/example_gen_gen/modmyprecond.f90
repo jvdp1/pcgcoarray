@@ -1,8 +1,8 @@
-module modprecond
+module modmyprecond
  !$ use omp_lib
  use modkind
 #if (COARRAY==1)
- use modcoarraysolver
+ use modprecond,only:gen_precond
 #endif
  implicit none
  private

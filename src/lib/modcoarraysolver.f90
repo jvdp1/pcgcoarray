@@ -2,44 +2,13 @@ module modcoarraysolver
  !$ use omp_lib
  use modkind
  use modsparse
+ use modprecond,only:gen_precond
+ use modcoeff,only:gen_coeff
  implicit none
  private
  public::pcg,chebyshev
- public::gen_coeff,gen_precond
 
  !ABSTRACTS
- type,abstract::gen_coeff
-  contains
-  private
-  procedure(multbyv_gen),public,deferred::multbyv
- end type
-
- abstract interface
-  subroutine multbyv_gen(this,x,y,starteq,endeq)
-   import::gen_coeff,int4,real8
-   class(gen_coeff),intent(inout)::this
-   integer(kind=int4),intent(in)::starteq,endeq
-   real(kind=real8),intent(in)::x(:)
-   real(kind=real8),intent(inout)::y(:)
-  end subroutine
- end interface
-
- type,abstract::gen_precond
-  contains
-  private
-  procedure(solve_gen),public,deferred::solve
- end type
-
- abstract interface
-  subroutine solve_gen(this,x,y)
-   import::gen_precond,real8
-   class(gen_precond),intent(inout)::this
-   real(kind=real8),intent(out)::x(:)
-   real(kind=real8),intent(inout)::y(:)
-  end subroutine
- end interface
-
-
  type,abstract::solver
   private
   integer(kind=int4)::neq=-9
@@ -53,6 +22,7 @@ module modcoarraysolver
   procedure,public::setoutput
  end type
 
+ !SOLVERS
  !CHEBYSHEV
  type,extends(solver)::chebyshev
   private
@@ -66,7 +36,6 @@ module modcoarraysolver
  interface chebyshev
   module procedure constructor_chebyshev
  end interface
-
 
  !PCG
  type,extends(solver)::pcg
@@ -473,10 +442,6 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  !$ t1=omp_get_wtime() 
  startrowk=startrow-1
  do while(resvec1.gt.thr.and.iter.le.this%maxit)
-  !z=Mi*r
-  !do i=1,nrow
-  ! z(i)=precond(i)*r(i)
-  !enddo
   !M*z=r
   call solveprecond(precond,z,r,this%unlog)
 
