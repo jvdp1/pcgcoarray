@@ -3,7 +3,7 @@ include ../Makeinit
 LIBPCGCOARRAYROOT=../lib/
 LIBPCGCOARRAY=libpcgcoarray.a
 
-COARRAYENABLE=#shared
+COARRAYENABLE=shared
 
 F90FLAGSUB=
 
@@ -39,18 +39,13 @@ ifneq ($(COARRAYENABLE),)
  OBJ+=modmyprecond.o
 endif
 
-EXEC=prepamvlr
-
 ifneq ($(COARRAYENABLE),)
- EXEC=pcgrowcoarray_mvlr
+ EXEC=fpcgrowcoarray_mvlr
 endif
 
 all: $(EXEC)
 
-prepamvlr: $(OBJ) prepamvlr.f90 
-	$(F90) $(F90FLAGS) $^ -o $@$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE)
-
-pcgrowcoarray_mvlr: $(OBJ) pcgrowcoarray_mvlr.f90
+fpcgrowcoarray_mvlr: $(OBJ) fpcgrowcoarray_mvlr.f90
 	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) -DCOARRAY=$(coarray) $^ -o $@$(coarraytype)$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE) $(LIBPCGCOARRAYROOT)$(LIBPCGCOARRAY)
 
 %.o: %.f90
@@ -60,5 +55,5 @@ cleanlib:
 	rm -rf *.o *.mod
 
 clean:
-	rm -rf *.o *.mod *.dist* *.shared* prepamvlr
+	rm -rf *.o *.mod *.dist* *.shared* 
 

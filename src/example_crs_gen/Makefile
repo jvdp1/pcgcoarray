@@ -51,5 +51,5 @@ cleanlib:
 	rm -rf *.o *.mod
 
 clean:
-	rm -rf *.o *.mod pcg *.dist* *.shared*
+	rm -rf *.o *.mod *.dist* *.shared*
 

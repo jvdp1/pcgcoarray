@@ -49,5 +49,5 @@ cleanlib:
 	rm -rf *.o *.mod
 
 clean:
-	rm -rf *.o *.mod pcg *.dist* *.shared* prepafile
+	rm -rf *.o *.mod *.dist* *.shared* prepafile
 
