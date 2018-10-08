@@ -1,7 +1,7 @@
 program  pcgrowcorray_mvlr
  !$ use omp_lib
  use modkind
- use modpcgcoarray
+ use modcoarraysolver
  use modprecond
  use modmvlr
  implicit none
@@ -15,7 +15,7 @@ program  pcgrowcorray_mvlr
  !$ real(kind=real8)::t2
  type(arrayprecond)::precond
  type(mvlr)::reg
- type(solver)::pcg
+ type(pcg)::pcgsolver
 
  !$ t2=omp_get_wtime() 
 
@@ -70,10 +70,9 @@ program  pcgrowcorray_mvlr
  sync all
 
  !call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
-! pcg=solver('chebyshev',neq,unlog=unlog)
-! call pcg%seteigenvalues(1._real8,7._real8)
- pcg=solver('pcg',neq,unlog=unlog)
- call pcg%solve(reg,x,'rhs.bin',precond,startrow,endrow)
+ pcgsolver=pcg(neq)
+ call pcgsolver%setoutput(unlog)
+ call pcgsolver%solve(reg,x,'rhs.bin',precond,startrow,endrow)
 
  sync all
 

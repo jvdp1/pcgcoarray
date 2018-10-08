@@ -2,7 +2,7 @@ module modprecond
  !$ use omp_lib
  use modkind
 #if (COARRAY==1)
- use modpcgcoarray
+ use modcoarraysolver
 #endif
  implicit none
  private

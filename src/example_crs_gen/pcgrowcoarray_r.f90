@@ -2,7 +2,7 @@ program  pcgrowcorray_r
  !$ use omp_lib
  use modkind
  use modsparse
- use modpcgcoarray
+ use modcoarraysolver
  use modprecond
  implicit none
  integer(kind=int4)::thisimage,unlog
@@ -14,7 +14,7 @@ program  pcgrowcorray_r
  type(arrayprecond)::crsprecond
  type(crssparse)::crs
  type(crssparse)::crssubtmp
- type(solver)::pcg
+ type(pcg)::pcgsolver
 
  !$ t2=omp_get_wtime() 
 
@@ -65,10 +65,9 @@ program  pcgrowcorray_r
  sync all
 
  !call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
-! pcg=solver('chebyshev',neq,unlog=unlog)
-! call pcg%seteigenvalues(1._real8,7._real8)
- pcg=solver('pcg',neq,unlog=unlog)
- call pcg%solve(crs,x,'rhs.bin',crsprecond,startrow,endrow)
+ pcgsolver=pcg(neq)
+ call pcgsolver%setoutput(unlog)
+ call pcgsolver%solve(crs,x,'rhs.bin',crsprecond,startrow,endrow)
 
  sync all
 

@@ -1,12 +1,13 @@
-module modpcgcoarray
+module modcoarraysolver
  !$ use omp_lib
  use modkind
  use modsparse
  implicit none
  private
- public::solver
+ public::pcg,chebyshev
  public::gen_coeff,gen_precond
 
+ !ABSTRACTS
  type,abstract::gen_coeff
   contains
   private
@@ -38,81 +39,109 @@ module modpcgcoarray
   end subroutine
  end interface
 
- type::solver
+
+ type,abstract::solver
   private
   integer(kind=int4)::neq=-9
-  integer(kind=int4)::unlog
-  integer(kind=int4)::maxit
-  real(kind=real8)::tol
-  real(kind=real8)::smalleigenval,largeeigenval
-  character(len=20)::selectedsolver
-  procedure(itersolve_gen),public,pointer::solve=>null()
+  integer(kind=int4)::unlog=6
+  integer(kind=int4)::maxit=1000
+  real(kind=real8)::tol=1.e-6
   contains
   private
-  procedure,public::seteigenvalues
-  final::destroy_solver
+  procedure,public::setmaxiterations
+  procedure,public::setthreshold
+  procedure,public::setoutput
+ end type
+
+ !CHEBYSHEV
+ type,extends(solver)::chebyshev
+  private
+  real(kind=8)::smalleigenval,largeeigenval
+  contains
+  private
+  procedure,public::solve=>chebyshevrowcoarray
+  final::destroy_chebyshev
  end type
  
- interface solver
-  module procedure constructor_solver
+ interface chebyshev
+  module procedure constructor_chebyshev
  end interface
 
- abstract interface
-  subroutine itersolve_gen(this,lhs,x,crhs,precond,startrow,endrow)
-   import::solver,int4,real8
-   class(solver),intent(inout)::this
-   class(*),intent(inout)::lhs
-   class(*),intent(inout)::precond
-   integer(kind=int4),intent(in)::startrow[*],endrow[*]
-   real(kind=real8),intent(inout)::x(:)[*]
-   character(len=*),intent(in)::crhs
-  end subroutine
+
+ !PCG
+ type,extends(solver)::pcg
+  private
+  real(kind=8)::smalleigenval,largeeigenval
+  contains
+  private
+  procedure,public::solve=>pcgrowcoarray
+  final::destroy_pcg
+ end type
+ 
+ interface pcg
+  module procedure constructor_pcg
  end interface
 
 contains
 
 !PUBLIC
+
+!--ABSTRACT
+!**SET MAXIMUM ITERATIONS
+subroutine setmaxiterations(this,maxit)
+ class(solver),intent(inout)::this
+ integer(kind=int4),intent(in)::maxit
+
+ this%maxit=maxit
+
+end subroutine
+
+!**SET OUTPUT
+subroutine setoutput(this,un)
+ class(solver),intent(inout)::this
+ integer(kind=int4),intent(in)::un
+
+ this%unlog=un
+
+end subroutine
+
+!**SET THRESHOLD
+subroutine setthreshold(this,tol)
+ class(solver),intent(inout)::this
+ real(kind=real8),intent(in)::tol
+
+ this%tol=tol
+
+end subroutine
+
+
+!--CHEBYSHEV
 !**CONSTRUCTOR
-function constructor_solver(selectedsolver,neq,maxit,tol,unlog) result(this)
- type(solver)::this
+function constructor_chebyshev(neq,small,large) result(this)
+ type(chebyshev)::this
  integer(kind=int4),intent(in)::neq
- integer(kind=int4),intent(in),optional::maxit,unlog
- real(kind=int8),intent(in),optional::tol
- character(len=*)::selectedsolver
-
- this%unlog=6
- if(present(unlog))this%unlog=unlog
-
- !should put a check to be sure that the same solver is requested for all images
- select case(selectedsolver)
-  case('chebyshev','CHEBYSHEV')
-   this%selectedsolver='CHEBYSHEV'
-   this%solve=>chebyshevrowcoarray
-  case('pcg','PCG')
-   this%selectedsolver='PCG'
-   this%solve=>pcgrowcoarray
-  case default
-   write(this%unlog,'(a)')' ERROR: wrong selected solver!'
-   error stop
- end select
- write(this%unlog,'(/2a)')' Solver selected: ',trim(this%selectedsolver)
+ real(kind=int8),intent(in)::small,large
 
  this%neq=neq
  
- this%maxit=10000
- if(present(maxit))this%maxit=maxit
- 
- this%tol=1.e-6
- if(present(tol))this%tol=tol
- 
- this%smalleigenval=0._real8
- this%largeeigenval=0._real8
+ this%smalleigenval=small
+ this%largeeigenval=large
 
 end function
 
-!**CHEBYSHEV
+!**SET EIGENVALUES
+subroutine seteigenvalues(this,small,large)
+ class(chebyshev),intent(inout)::this
+ real(kind=real8),intent(in)::small,large
+
+ this%smalleigenval=small
+ this%largeeigenval=large
+
+end subroutine
+
+!**SOLVER
 subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
- class(solver),intent(inout)::this
+ class(chebyshev),intent(inout)::this
  class(*),intent(inout)::crs
  class(*),intent(inout)::precond
  integer(kind=int4),intent(in)::startrow[*],endrow[*]
@@ -299,18 +328,50 @@ subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
 
 end subroutine
 
-subroutine seteigenvalues(this,small,large)
- class(solver),intent(inout)::this
- real(kind=real8),intent(in)::small,large
+!*FINAL
+subroutine destroy_chebyshev(this)
+ type(chebyshev),intent(inout)::this
 
- this%smalleigenval=small
- this%largeeigenval=large
+ call destroy_solver(this)
 
+ this%smalleigenval=0._real8
+ this%largeeigenval=0._real8
+ 
 end subroutine
 
-!**PCG
+!--PCG
+!**CONSTRUCTOR
+function constructor_pcg(neq) result(this)
+ type(pcg)::this
+ integer(kind=int4),intent(in)::neq
+
+ this%neq=neq
+ 
+ this%smalleigenval=0._real8
+ this%largeeigenval=0._real8
+
+end function
+
+!**GET EIGENVALUES
+function getlargeeigenvalue(this) result(val)
+ class(pcg),intent(in)::this
+ real(kind=real8)::val
+ 
+ val=this%largeeigenval
+
+end function
+
+function getsmalleigenvalue(this) result(val)
+ class(pcg),intent(in)::this
+ real(kind=real8)::val
+ 
+ val=this%smalleigenval
+
+end function
+
+!**SOLVER
 subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
- class(solver),intent(inout)::this
+ class(pcg),intent(inout)::this
  class(*),intent(inout)::crs
  class(*),intent(inout)::precond
  integer(kind=int4),intent(in)::startrow[*],endrow[*]
@@ -520,7 +581,7 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
 
  if(thisimage.eq.num_images())then
   !Estimation of eigenvalues and condition number
-  if(iter>3)call eigenvalandcondnumber(T,iter,this%unlog)
+  if(iter>3)call eigenvalandcondnumber(T,iter,this%smalleigenval,this%largeeigenval,this%unlog)
   deallocate(T)
  endif
 
@@ -547,19 +608,17 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
 
 end subroutine
 
-!**FINAL
-subroutine destroy_solver(this)
- type(solver),intent(inout)::this
+!*FINAL
+subroutine destroy_pcg(this)
+ type(pcg),intent(inout)::this
 
- this%neq=-9
- 
- this%maxit=10000
- this%tol=1.e-6
- this%unlog=6
- this%smalleigenval=0_real8
- this%largeeigenval=0_real8
+ call destroy_solver(this)
+
+ this%smalleigenval=0._real8
+ this%largeeigenval=0._real8
 
 end subroutine
+
 
 !PRIVATE
 !COEFFICENT MATRIX
@@ -602,9 +661,10 @@ subroutine addalphabetatot(T,iter,previousalpha,beta)
 
 end subroutine
 
-subroutine eigenvalandcondnumber(T,iter,unlog)
+subroutine eigenvalandcondnumber(T,iter,small,large,unlog)
  integer(kind=int4),intent(in)::iter
  integer(kind=int4),intent(in),optional::unlog
+ real(kind=real8),intent(out),optional::small,large
  real(kind=real8),intent(inout)::T(:,:)
 
  integer(kind=int4)::un
@@ -620,6 +680,9 @@ subroutine eigenvalandcondnumber(T,iter,unlog)
  allocate(ttmp,source=T(2:iter-2,2:iter-2))
  call eigensyevd(ttmp,iter-3,eigenvalue)
  deallocate(ttmp)
+
+ if(present(small))small=minval(eigenvalue)
+ if(present(large))large=minval(eigenvalue)
 
  write(un,'(/"  Mininum | maximum eigenvalues        : ",g0.5,a,g0.5)')minval(eigenvalue),' | ',maxval(eigenvalue)
  write(un,'( "   Effective spectral condition number : ",g0.5)')maxval(eigenvalue)/minval(eigenvalue)
@@ -662,6 +725,17 @@ subroutine eigensyevd(mat,n,w,leigvectors)
  if (info.ne.0) then
   print*,'ERROR info-end: ',info
  endif
+
+end subroutine
+
+!DESTROY
+subroutine destroy_solver(this)
+ class(solver),intent(inout)::this
+
+ this%neq=-9
+ this%maxit=10000
+ this%tol=1.e-6
+ this%unlog=6
 
 end subroutine
 

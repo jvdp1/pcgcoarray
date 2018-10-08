@@ -3,7 +3,7 @@ module modmvlr
  use modkind
  use modsparse
 #if (COARRAY==1)
- use modpcgcoarray
+ use modcoarraysolver
 #endif
 
  implicit none

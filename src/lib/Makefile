@@ -30,7 +30,7 @@ endif
 
 all:	libpcgcoarray.a
 
-OBJ=modkind.o modpcgcoarray.o 
+OBJ=modkind.o modcoarraysolver.o 
 
 libpcgcoarray.a: $(OBJ)
 	ar cr  libpcgcoarray.a $(OBJ)
