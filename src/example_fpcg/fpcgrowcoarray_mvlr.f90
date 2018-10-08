@@ -1,17 +1,20 @@
-program  pcgrowcorray
+program  pcgrowcorray_mvlr
  !$ use omp_lib
  use modkind
- use modsparse
  use modcoarraysolver
+ use modmyprecond
+ use modmvlr
  implicit none
  integer(kind=int4)::thisimage,unlog
  integer(kind=int4)::neq
+ integer(kind=int4)::un
  integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
- character(len=80)::host,cdummy,cdummy1
+ character(len=80)::host,cdummy
+ real(kind=real8),allocatable::array(:)
  real(kind=real8),allocatable::x(:)[:]
  !$ real(kind=real8)::t2
- type(crssparse)::crs
- type(crssparse)::crsprecond
+ type(arrayprecond)::precond
+ type(mvlr)::reg
  type(pcg)::pcgsolver
 
  !$ t2=omp_get_wtime() 
@@ -41,16 +44,27 @@ program  pcgrowcorray
  sync all
 
  !Reads the matrix
- cdummy1='crs_subpcg.row'//adjustl(cdummy(:len_trim(cdummy)))
- crs=crssparse(cdummy1,unlog)
- call crs%printstats()
+ cdummy='parammvlr.dat'
+ call reg%init(cdummy,unlog)
 
- neq=crs%getdim(2)
+ neq=reg%getneq()
+
 
  !create preconditioner
- cdummy1='crs_precond.row'//adjustl(cdummy(:len_trim(cdummy)))
- crsprecond=crssparse(cdummy1,unlog)
- call crsprecond%printstats()
+ write(unlog,'(/a)')' Extraction of the diagonal elements...'
+
+ precond%dim1=endrow-startrow+1
+ allocate(precond%array1(precond%dim1))
+ allocate(precond%array2(precond%dim1))
+ open(newunit=un,file='precond.stream',access='stream',status='old',action='read')
+ read(un)neq
+ allocate(array(neq))
+ read(un)array
+ close(un)
+ precond%array1=array(startrow:endrow)
+ !precond%array2=precond%array1
+ precond%array2=1.d0
+ deallocate(array)
 
  !solution vector
  allocate(x(neq)[*])
@@ -58,10 +72,10 @@ program  pcgrowcorray
 
  sync all
 
- !call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
+ !call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
  pcgsolver=pcg(neq)
  call pcgsolver%setoutput(unlog)
- call pcgsolver%solve(crs,x,'rhs.bin',crsprecond,startrow,endrow)
+ call pcgsolver%solve(reg,x,'rhs.bin',precond,startrow,endrow)
 
  sync all
 

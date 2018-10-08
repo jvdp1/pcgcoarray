@@ -2,8 +2,8 @@ program  pcgrowcorray_r
  !$ use omp_lib
  use modkind
  use modsparse
- use modpcgcoarray
- use modprecond
+ use modcoarraysolver
+ use modmyprecond
  implicit none
  integer(kind=int4)::thisimage,unlog
  integer(kind=int4)::neq
@@ -14,6 +14,7 @@ program  pcgrowcorray_r
  type(arrayprecond)::crsprecond
  type(crssparse)::crs
  type(crssparse)::crssubtmp
+ type(pcg)::pcgsolver
 
  !$ t2=omp_get_wtime() 
 
@@ -63,10 +64,12 @@ program  pcgrowcorray_r
 
  sync all
 
- call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
+ !call pcgrowcoarray(neq,crs,x,'rhs.bin',crsprecond,startrow,endrow,unlog)
+ pcgsolver=pcg(neq)
+ call pcgsolver%setoutput(unlog)
+ call pcgsolver%solve(crs,x,'rhs.bin',crsprecond,startrow,endrow)
 
  sync all
-
 
  if(thisimage.eq.1)call print_ascii(x,1,neq,unlog)
 

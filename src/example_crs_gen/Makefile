@@ -35,7 +35,7 @@ else
 endif
 
 ifneq ($(COARRAYENABLE),)
- OBJ=modprecond.o
+ OBJ=modmyprecond.o
  EXEC=pcgrowcoarray_r
 endif
 
@@ -51,5 +51,5 @@ cleanlib:
 	rm -rf *.o *.mod
 
 clean:
-	rm -rf *.o *.mod pcg *.dist* *.shared*
+	rm -rf *.o *.mod *.dist* *.shared*
 

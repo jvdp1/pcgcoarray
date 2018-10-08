@@ -1,8 +1,8 @@
 program  pcgrowcorray_mvlr
  !$ use omp_lib
  use modkind
- use modpcgcoarray
- use modprecond
+ use modcoarraysolver
+ use modmyprecond
  use modmvlr
  implicit none
  integer(kind=int4)::thisimage,unlog
@@ -15,6 +15,7 @@ program  pcgrowcorray_mvlr
  !$ real(kind=real8)::t2
  type(arrayprecond)::precond
  type(mvlr)::reg
+ type(pcg)::pcgsolver
 
  !$ t2=omp_get_wtime() 
 
@@ -68,7 +69,10 @@ program  pcgrowcorray_mvlr
 
  sync all
 
- call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
+ !call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
+ pcgsolver=pcg(neq)
+ call pcgsolver%setoutput(unlog)
+ call pcgsolver%solve(reg,x,'rhs.bin',precond,startrow,endrow)
 
  sync all
 
