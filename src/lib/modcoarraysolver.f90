@@ -1,6 +1,6 @@
 module modcoarraysolver
+ use iso_fortran_env
  !$ use omp_lib
- use modkind
  use modsparse
  use modprecond,only:gen_precond
  use modcoeff,only:gen_coeff
@@ -11,11 +11,11 @@ module modcoarraysolver
  !ABSTRACTS
  type,abstract::solver
   private
-  integer(kind=int4)::neq=-9
-  integer(kind=int4)::unlog=6
-  integer(kind=int4)::maxit=1000
-  integer(kind=int4)::niter=-1
-  real(kind=real8)::tol=1.e-6
+  integer(kind=int32)::neq=-9
+  integer(kind=int32)::unlog=6
+  integer(kind=int32)::maxit=1000
+  integer(kind=int32)::niter=-1
+  real(kind=real64)::tol=1.e-6
   contains
   private
   procedure,public::getiter
@@ -26,8 +26,8 @@ module modcoarraysolver
 
  type,extends(solver),abstract::cgsolver
   private
-  real(kind=8)::smalleigenval=0._real8
-  real(kind=8)::largeeigenval=0._real8
+  real(kind=real64)::smalleigenval=0._real64
+  real(kind=real64)::largeeigenval=0._real64
   contains
   private
   procedure,public::getsmalleigenvalue
@@ -39,7 +39,7 @@ module modcoarraysolver
  !*CHEBYSHEV
  type,extends(solver)::chebyshev
   private
-  real(kind=8)::smalleigenval,largeeigenval
+  real(kind=real64)::smalleigenval,largeeigenval
   contains
   private
   procedure,public::solve=>chebyshevrowcoarray
@@ -100,7 +100,7 @@ contains
 !**GET NUMBER ITERATIONS
 function getiter(this) result(niter)
  class(solver),intent(in)::this
- integer(kind=int4)::niter
+ integer(kind=int32)::niter
 
  niter=this%niter
 
@@ -109,7 +109,7 @@ end function
 !**SET MAXIMUM ITERATIONS
 subroutine setmaxiterations(this,maxit)
  class(solver),intent(inout)::this
- integer(kind=int4),intent(in)::maxit
+ integer(kind=int32),intent(in)::maxit
 
  this%maxit=maxit
 
@@ -118,7 +118,7 @@ end subroutine
 !**SET OUTPUT
 subroutine setoutput(this,un)
  class(solver),intent(inout)::this
- integer(kind=int4),intent(in)::un
+ integer(kind=int32),intent(in)::un
 
  this%unlog=un
 
@@ -127,7 +127,7 @@ end subroutine
 !**SET THRESHOLD
 subroutine setthreshold(this,tol)
  class(solver),intent(inout)::this
- real(kind=real8),intent(in)::tol
+ real(kind=real64),intent(in)::tol
 
  this%tol=tol
 
@@ -138,8 +138,8 @@ end subroutine
 !**CONSTRUCTOR
 function constructor_chebyshev(neq,small,large) result(this)
  type(chebyshev)::this
- integer(kind=int4),intent(in)::neq
- real(kind=int8),intent(in)::small,large
+ integer(kind=int32),intent(in)::neq
+ real(kind=real64),intent(in)::small,large
 
  this%neq=neq
  
@@ -151,7 +151,7 @@ end function
 !**SET EIGENVALUES
 subroutine seteigenvalues(this,small,large)
  class(chebyshev),intent(inout)::this
- real(kind=real8),intent(in)::small,large
+ real(kind=real64),intent(in)::small,large
 
  this%smalleigenval=small
  this%largeeigenval=large
@@ -163,20 +163,20 @@ subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  class(chebyshev),intent(inout)::this
  class(*),intent(inout)::crs
  class(*),intent(inout)::precond
- integer(kind=int4),intent(in)::startrow[*],endrow[*]
- real(kind=real8),intent(inout)::x(:)[*]
+ integer(kind=int32),intent(in)::startrow[*],endrow[*]
+ real(kind=real64),intent(inout)::x(:)[*]
  character(len=*),intent(in)::crhs
 
- integer(kind=int4)::thisimage,unconv
- integer(kind=int4)::i,j,k,nrow,iter
- integer(kind=int4)::startrowk
- real(kind=real8)::conv,thr,beta
- real(kind=real8)::cvalue,dvalue
- real(kind=real8),allocatable::b_norm[:],resvec1[:],alpha[:]
- real(kind=real8),allocatable::rhs(:)
- real(kind=real8),allocatable::z(:),r(:),w(:)
- real(kind=real8),allocatable::p(:)[:]
- !$ real(kind=real8)::t1,t2,val
+ integer(kind=int32)::thisimage,unconv
+ integer(kind=int32)::i,j,k,nrow,iter
+ integer(kind=int32)::startrowk
+ real(kind=real64)::conv,thr,beta
+ real(kind=real64)::cvalue,dvalue
+ real(kind=real64),allocatable::b_norm[:],resvec1[:],alpha[:]
+ real(kind=real64),allocatable::rhs(:)
+ real(kind=real64),allocatable::z(:),r(:),w(:)
+ real(kind=real64),allocatable::p(:)[:]
+ !$ real(kind=real64)::t1,t2,val
 
  !$ t2=omp_get_wtime() 
 
@@ -192,7 +192,7 @@ subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  !$omp end parallel
 
  !check provided eigenvalues
- if(this%smalleigenval.eq.0._real8.or.this%largeeigenval.eq.0._real8)then
+ if(this%smalleigenval.eq.0._real64.or.this%largeeigenval.eq.0._real64)then
   write(this%unlog,'(a)')' ERROR: Wrong eigenvalues for the CHEBYSHEV solver!'
   error stop
  endif
@@ -210,12 +210,12 @@ subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  !Initialistion PCG arrays
  allocate(z(nrow),w(nrow),r(nrow))
  allocate(p(this%neq)[*])
- r=0._real8;p=0._real8;z=0._real8;w=0._real8
+ r=0._real64;p=0._real64;z=0._real64;w=0._real64
 
  !initiatilisation of r
  allocate(b_norm[*],resvec1[*],alpha[*])
 
- if(sum(x).eq.0._real8)then
+ if(sum(x).eq.0._real64)then
   r=rhs
  else
   print*,'not yet implemented'
@@ -254,10 +254,10 @@ subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   write(unconv,'(" Iteration ",i6," Convergence = ",e12.5,1x,e12.5)')1,conv,0.
  endif
 
- dvalue=(this%largeeigenval+this%smalleigenval)/2._real8
- cvalue=(this%largeeigenval-this%smalleigenval)/2._real8
+ dvalue=(this%largeeigenval+this%smalleigenval)/2._real64
+ cvalue=(this%largeeigenval-this%smalleigenval)/2._real64
 
- alpha=0._real8
+ alpha=0._real64
  iter=2
  thr=this%tol*b_norm
 
@@ -268,8 +268,8 @@ subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   !M*z=r
   call solveprecond(precond,z,r,this%unlog)
 
-  beta=(cvalue*alpha/2._real8)**2
-  alpha=1._real8/(dvalue-beta)
+  beta=(cvalue*alpha/2._real64)**2
+  alpha=1._real64/(dvalue-beta)
 
   !p=z+beta*p
   do i=startrow,endrow
@@ -355,8 +355,8 @@ subroutine destroy_chebyshev(this)
 
  call destroy_solver(this)
 
- this%smalleigenval=0._real8
- this%largeeigenval=0._real8
+ this%smalleigenval=0._real64
+ this%largeeigenval=0._real64
  
 end subroutine
 
@@ -365,7 +365,7 @@ end subroutine
 !**GET EIGENVALUES
 function getlargeeigenvalue(this) result(val)
  class(cgsolver),intent(in)::this
- real(kind=real8)::val
+ real(kind=real64)::val
  
  val=this%largeeigenval
 
@@ -373,7 +373,7 @@ end function
 
 function getsmalleigenvalue(this) result(val)
  class(cgsolver),intent(in)::this
- real(kind=real8)::val
+ real(kind=real64)::val
  
  val=this%smalleigenval
 
@@ -384,7 +384,7 @@ end function
 !**CONSTRUCTOR
 function constructor_cg(neq) result(this)
  type(cg)::this
- integer(kind=int4),intent(in)::neq
+ integer(kind=int32),intent(in)::neq
 
  this%neq=neq
 
@@ -394,20 +394,20 @@ end function
 subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
  class(cg),intent(inout)::this
  class(*),intent(inout)::crs
- integer(kind=int4),intent(in)::startrow[*],endrow[*]
- real(kind=real8),intent(inout)::x(:)[*]
+ integer(kind=int32),intent(in)::startrow[*],endrow[*]
+ real(kind=real64),intent(inout)::x(:)[*]
  character(len=*),intent(in)::crhs
 
- integer(kind=int4)::thisimage,unconv
- integer(kind=int4)::i,j,k,nrow,iter
- integer(kind=int4)::startrowk
- real(kind=real8)::oldtau,conv,thr,beta
- real(kind=real8),allocatable::b_norm[:],resvec1[:],alpha[:],tau[:]
- real(kind=real8),allocatable::rhs(:)
- real(kind=real8),allocatable::r(:),w(:)
- real(kind=real8),allocatable::p(:)[:]
- real(kind=real8),allocatable::T(:,:)
- !$ real(kind=real8)::t1,t2,val
+ integer(kind=int32)::thisimage,unconv
+ integer(kind=int32)::i,j,k,nrow,iter
+ integer(kind=int32)::startrowk
+ real(kind=real64)::oldtau,conv,thr,beta
+ real(kind=real64),allocatable::b_norm[:],resvec1[:],alpha[:],tau[:]
+ real(kind=real64),allocatable::rhs(:)
+ real(kind=real64),allocatable::r(:),w(:)
+ real(kind=real64),allocatable::p(:)[:]
+ real(kind=real64),allocatable::T(:,:)
+ !$ real(kind=real64)::t1,t2,val
 
  !$ t2=omp_get_wtime() 
 
@@ -435,14 +435,14 @@ subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
  !Initialistion PCG arrays
  allocate(w(nrow),r(nrow))
  allocate(p(this%neq)[*])
- r=0._real8;p=0._real8;w=0._real8
+ r=0._real64;p=0._real64;w=0._real64
 
- oldtau=1._real8
+ oldtau=1._real64
 
  !initiatilisation of r
  allocate(b_norm[*],resvec1[*],alpha[*],tau[*])
 
- if(sum(x).eq.0._real8)then
+ if(sum(x).eq.0._real64)then
   r=rhs
  else
   print*,'not yet implemented'
@@ -482,10 +482,10 @@ subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
  endif
 
  if(thisimage.eq.num_images())then
-  allocate(T(this%maxit,this%maxit));T=0._real8
+  allocate(T(this%maxit,this%maxit));T=0._real64
  endif
 
- alpha=1._real8
+ alpha=1._real64
  iter=2
  thr=this%tol*b_norm
 
@@ -495,7 +495,7 @@ subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
  do while(resvec1.gt.thr.and.iter.le.this%maxit)
 
   !tau=r*r
-  tau=0._real8
+  tau=0._real64
   do i=1,nrow
    tau=tau+r(i)**2
   enddo
@@ -537,7 +537,7 @@ subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
   !alpha=p*w
   if(thisimage.eq.num_images().and.iter.gt.2)call addalphabetatot(T,iter,alpha,beta)
 
-  alpha=0._real8
+  alpha=0._real64
   do i=1,nrow
    alpha=alpha+p(startrowk+i)*w(i)
   enddo
@@ -630,8 +630,8 @@ subroutine destroy_cg(this)
 
  call destroy_solver(this)
 
- this%smalleigenval=0._real8
- this%largeeigenval=0._real8
+ this%smalleigenval=0._real64
+ this%largeeigenval=0._real64
 
 end subroutine
 
@@ -640,7 +640,7 @@ end subroutine
 !**CONSTRUCTOR
 function constructor_pcg(neq) result(this)
  type(pcg)::this
- integer(kind=int4),intent(in)::neq
+ integer(kind=int32),intent(in)::neq
 
  this%neq=neq
 
@@ -651,20 +651,20 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  class(pcg),intent(inout)::this
  class(*),intent(inout)::crs
  class(*),intent(inout),optional::precond
- integer(kind=int4),intent(in)::startrow[*],endrow[*]
- real(kind=real8),intent(inout)::x(:)[*]
+ integer(kind=int32),intent(in)::startrow[*],endrow[*]
+ real(kind=real64),intent(inout)::x(:)[*]
  character(len=*),intent(in)::crhs
 
- integer(kind=int4)::thisimage,unconv
- integer(kind=int4)::i,j,k,nrow,iter
- integer(kind=int4)::startrowk
- real(kind=real8)::oldtau,conv,thr,beta
- real(kind=real8),allocatable::b_norm[:],resvec1[:],alpha[:],tau[:]
- real(kind=real8),allocatable::rhs(:)!,precond(:)
- real(kind=real8),allocatable::z(:),r(:),w(:)
- real(kind=real8),allocatable::p(:)[:]
- real(kind=real8),allocatable::T(:,:)
- !$ real(kind=real8)::t1,t2,val
+ integer(kind=int32)::thisimage,unconv
+ integer(kind=int32)::i,j,k,nrow,iter
+ integer(kind=int32)::startrowk
+ real(kind=real64)::oldtau,conv,thr,beta
+ real(kind=real64),allocatable::b_norm[:],resvec1[:],alpha[:],tau[:]
+ real(kind=real64),allocatable::rhs(:)!,precond(:)
+ real(kind=real64),allocatable::z(:),r(:),w(:)
+ real(kind=real64),allocatable::p(:)[:]
+ real(kind=real64),allocatable::T(:,:)
+ !$ real(kind=real64)::t1,t2,val
 
  !$ t2=omp_get_wtime() 
 
@@ -692,14 +692,14 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  !Initialistion PCG arrays
  allocate(z(nrow),w(nrow),r(nrow))
  allocate(p(this%neq)[*])
- r=0._real8;p=0._real8;z=0._real8;w=0._real8
+ r=0._real64;p=0._real64;z=0._real64;w=0._real64
 
- oldtau=1._real8
+ oldtau=1._real64
 
  !initiatilisation of r
  allocate(b_norm[*],resvec1[*],alpha[*],tau[*])
 
- if(sum(x).eq.0._real8)then
+ if(sum(x).eq.0._real64)then
   r=rhs
  else
   print*,'not yet implemented'
@@ -739,10 +739,10 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  endif
 
  if(thisimage.eq.num_images())then
-  allocate(T(this%maxit,this%maxit));T=0._real8
+  allocate(T(this%maxit,this%maxit));T=0._real64
  endif
 
- alpha=1._real8
+ alpha=1._real64
  iter=2
  thr=this%tol*b_norm
 
@@ -754,7 +754,7 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   call solveprecond(precond,z,r,this%unlog)
 
   !tau=z*r
-  tau=0._real8
+  tau=0._real64
   do i=1,nrow
    tau=tau+z(i)*r(i)
   enddo
@@ -796,7 +796,7 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   !alpha=p*w
   if(thisimage.eq.num_images().and.iter.gt.2)call addalphabetatot(T,iter,alpha,beta)
 
-  alpha=0._real8
+  alpha=0._real64
   do i=1,nrow
    alpha=alpha+p(startrowk+i)*w(i)
   enddo
@@ -889,8 +889,8 @@ subroutine destroy_pcg(this)
 
  call destroy_solver(this)
 
- this%smalleigenval=0._real8
- this%largeeigenval=0._real8
+ this%smalleigenval=0._real64
+ this%largeeigenval=0._real64
 
 end subroutine
 
@@ -898,7 +898,7 @@ end subroutine
 !**CONSTRUCTOR
 function constructor_fpcg(neq) result(this)
  type(fpcg)::this
- integer(kind=int4),intent(in)::neq
+ integer(kind=int32),intent(in)::neq
 
  this%neq=neq
  
@@ -909,20 +909,20 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  class(fpcg),intent(inout)::this
  class(*),intent(inout)::crs
  class(*),intent(inout),optional::precond
- integer(kind=int4),intent(in)::startrow[*],endrow[*]
- real(kind=real8),intent(inout)::x(:)[*]
+ integer(kind=int32),intent(in)::startrow[*],endrow[*]
+ real(kind=real64),intent(inout)::x(:)[*]
  character(len=*),intent(in)::crhs
 
- integer(kind=int4)::thisimage,unconv
- integer(kind=int4)::i,j,k,nrow,iter
- integer(kind=int4)::startrowk
- real(kind=real8)::oldtau,conv,thr,beta
- real(kind=real8),allocatable::b_norm[:],resvec1[:],alpha[:],tau[:]
- real(kind=real8),allocatable::rhs(:)!,precond(:)
- real(kind=real8),allocatable::z(:),r(:),rp(:),w(:)
- real(kind=real8),allocatable::p(:)[:]
- real(kind=real8),allocatable::T(:,:)
- !$ real(kind=real8)::t1,t2,val
+ integer(kind=int32)::thisimage,unconv
+ integer(kind=int32)::i,j,k,nrow,iter
+ integer(kind=int32)::startrowk
+ real(kind=real64)::oldtau,conv,thr,beta
+ real(kind=real64),allocatable::b_norm[:],resvec1[:],alpha[:],tau[:]
+ real(kind=real64),allocatable::rhs(:)!,precond(:)
+ real(kind=real64),allocatable::z(:),r(:),rp(:),w(:)
+ real(kind=real64),allocatable::p(:)[:]
+ real(kind=real64),allocatable::T(:,:)
+ !$ real(kind=real64)::t1,t2,val
 
  !$ t2=omp_get_wtime() 
 
@@ -950,14 +950,14 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  !Initialistion PCG arrays
  allocate(z(nrow),w(nrow),r(nrow),rp(nrow))
  allocate(p(this%neq)[*])
- r=0._real8;rp=0._real8;p=0._real8;z=0._real8;w=0._real8
+ r=0._real64;rp=0._real64;p=0._real64;z=0._real64;w=0._real64
 
- oldtau=1._real8
+ oldtau=1._real64
 
  !initiatilisation of r
  allocate(b_norm[*],resvec1[*],alpha[*],tau[*])
 
- if(sum(x).eq.0._real8)then
+ if(sum(x).eq.0._real64)then
   r=rhs
  else
   print*,'not yet implemented'
@@ -997,10 +997,10 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  endif
 
  if(thisimage.eq.num_images())then
-  allocate(T(this%maxit,this%maxit));T=0._real8
+  allocate(T(this%maxit,this%maxit));T=0._real64
  endif
 
- alpha=1._real8
+ alpha=1._real64
  iter=2
  thr=this%tol*b_norm
 
@@ -1012,7 +1012,7 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   call solveprecond(precond,z,r,this%unlog)
 
   !tau=z*r
-  tau=0._real8
+  tau=0._real64
   do i=1,nrow
    tau=tau+z(i)*(r(i)-rp(i))
   enddo
@@ -1054,7 +1054,7 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   !alpha=p*w
   if(thisimage.eq.num_images().and.iter.gt.2)call addalphabetatot(T,iter,alpha,beta)
 
-  alpha=0._real8
+  alpha=0._real64
   do i=1,nrow
    alpha=alpha+p(startrowk+i)*w(i)
   enddo
@@ -1148,8 +1148,8 @@ subroutine destroy_fpcg(this)
 
  call destroy_solver(this)
 
- this%smalleigenval=0._real8
- this%largeeigenval=0._real8
+ this%smalleigenval=0._real64
+ this%largeeigenval=0._real64
 
 end subroutine
 
@@ -1158,17 +1158,17 @@ end subroutine
 !COEFFICENT MATRIX
 subroutine multbyv(this,p,w,startrow,endrow,unlog)
  class(*),intent(inout)::this
- integer(kind=int4),intent(in)::unlog
- integer(kind=int4),intent(in)::startrow,endrow
- real(kind=real8),intent(in)::p(:)
- real(kind=real8),intent(inout)::w(:)
+ integer(kind=int32),intent(in)::unlog
+ integer(kind=int32),intent(in)::startrow,endrow
+ real(kind=real64),intent(in)::p(:)
+ real(kind=real64),intent(inout)::w(:)
  
 
  select type(this)
   class is(gen_coeff)
    call this%multbyv(p,w,startrow,endrow)  
   type is(crssparse)
-   call this%multbyv(1._real8,'n',p,0._real8,w)
+   call this%multbyv(1._real64,'n',p,0._real64,w)
   class default
    write(unlog,'(a)')' ERROR: the proposed type(class) of preconditioner is not supported!'
    error stop
@@ -1178,12 +1178,12 @@ end subroutine
 
 !CONDITION NUMBER
 subroutine addalphabetatot(T,iter,previousalpha,beta)
- integer(kind=int4),intent(in)::iter
- real(kind=real8),intent(in)::previousalpha,beta
- real(kind=real8),intent(inout)::T(:,:)
+ integer(kind=int32),intent(in)::iter
+ real(kind=real64),intent(in)::previousalpha,beta
+ real(kind=real64),intent(inout)::T(:,:)
  
- integer(kind=int4)::previousiter
- real(kind=real8)::b
+ integer(kind=int32)::previousiter
+ real(kind=real64)::b
 
  b=sqrt(beta)
  previousiter=iter-1
@@ -1196,13 +1196,13 @@ subroutine addalphabetatot(T,iter,previousalpha,beta)
 end subroutine
 
 subroutine eigenvalandcondnumber(T,iter,small,large,unlog)
- integer(kind=int4),intent(in)::iter
- integer(kind=int4),intent(in),optional::unlog
- real(kind=real8),intent(out),optional::small,large
- real(kind=real8),intent(inout)::T(:,:)
+ integer(kind=int32),intent(in)::iter
+ integer(kind=int32),intent(in),optional::unlog
+ real(kind=real64),intent(out),optional::small,large
+ real(kind=real64),intent(inout)::T(:,:)
 
- integer(kind=int4)::un
- real(kind=real8),allocatable::eigenvalue(:),ttmp(:,:)
+ integer(kind=int32)::un
+ real(kind=real64),allocatable::eigenvalue(:),ttmp(:,:)
 
  un=6
  if(present(unlog))un=unlog
@@ -1226,13 +1226,13 @@ write(un,*)iter,'aaa',ttmp(iter-2,iter-2)
 end subroutine
 
 subroutine eigensyevd(mat,n,w,leigvectors)
- integer(kind=int4),intent(in)::n
- real(kind=real8),intent(inout)::mat(:,:),w(:)
+ integer(kind=int32),intent(in)::n
+ real(kind=real64),intent(inout)::mat(:,:),w(:)
  logical,intent(in),optional::leigvectors
 
- integer(kind=int4)::info,i,j,lwork,liwork
- integer(kind=int4),allocatable::iwork(:)
- real(kind=real8),allocatable::work(:)
+ integer(kind=int32)::info,i,j,lwork,liwork
+ integer(kind=int32),allocatable::iwork(:)
+ real(kind=real64),allocatable::work(:)
  character(len=1)::jobz
 
  jobz='N'
@@ -1278,9 +1278,9 @@ end subroutine
 subroutine solveprecond(precond,z,r,unlog)
  !solve precond*z=r
  class(*),intent(inout)::precond
- integer(kind=int4),intent(in)::unlog
- real(kind=real8),intent(out)::z(:)
- real(kind=real8),intent(inout)::r(:)
+ integer(kind=int32),intent(in)::unlog
+ real(kind=real64),intent(out)::z(:)
+ real(kind=real64),intent(inout)::r(:)
 
  select type(precond)
   class is(gen_precond)
@@ -1296,11 +1296,11 @@ end subroutine
 
 !NORM
 function norm(vector,starteq,endeq)
- real(kind=real8),intent(in)::vector(:)
- integer(kind=int4),intent(in)::starteq,endeq
- real(kind=real8)::norm
+ real(kind=real64),intent(in)::vector(:)
+ integer(kind=int32),intent(in)::starteq,endeq
+ real(kind=real64)::norm
  
- integer(kind=int4)::i
+ integer(kind=int32)::i
 
  norm=0.d0
  do i=starteq,endeq
@@ -1313,13 +1313,13 @@ end function
 !READ RHS
 subroutine readrhs(rhs,crhs,startrow,endrow,unlog)
  !stupid to read a vector like that, but it works
- integer(kind=int4),intent(in)::startrow,endrow,unlog
- real(kind=real8),intent(inout)::rhs(:)
+ integer(kind=int32),intent(in)::startrow,endrow,unlog
+ real(kind=real64),intent(inout)::rhs(:)
  character(len=*),intent(in)::crhs
 
- integer(kind=int4)::i,j,io,un
- real(kind=real8)::val
- !$ real(kind=real8)::t1
+ integer(kind=int32)::i,j,io,un
+ real(kind=real64)::val
+ !$ real(kind=real64)::t1
 
  write(unlog,'(/a)')' Start to read the rhs'
  !$ t1=omp_get_wtime()

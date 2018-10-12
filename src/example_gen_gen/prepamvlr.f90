@@ -1,17 +1,17 @@
 program prepamvlr
- use modkind
+ use iso_fortran_env
  use modmvlr
  implicit none
- integer(kind=int4)::i,j,io,un
- integer(kind=int4)::ntrait,neffect,ncov,nphen
- integer(kind=int4)::unlog=6
- integer(kind=int4)::unout
- integer(kind=int4)::neq
- integer(kind=int4),allocatable::itmp(:),maxlevel(:),startlevel(:),model(:,:)
- integer(kind=real8)::itmp8
- real(kind=real8)::missing
- real(kind=real8),allocatable::val(:)
- real(kind=real8),allocatable::array(:)
+ integer(kind=int32)::i,j,io,un
+ integer(kind=int32)::ntrait,neffect,ncov,nphen
+ integer(kind=int32)::unlog=6
+ integer(kind=int32)::unout
+ integer(kind=int32)::neq
+ integer(kind=int32),allocatable::itmp(:),maxlevel(:),startlevel(:),model(:,:)
+ integer(kind=real64)::itmp8
+ real(kind=real64)::missing
+ real(kind=real64),allocatable::val(:)
+ real(kind=real64),allocatable::array(:)
  character(len=20)::datafile,dataoutput='data.eq'
  type(mvlr)::reg
 
@@ -111,11 +111,11 @@ function getaddress(startlevel,ntrait,effect,level,trait) result(address)
 end function
 
 function setmissing(val,missing,ntrait) result(combi)
- integer(kind=int4),intent(in)::ntrait
- integer(kind=real8)::combi
- real(kind=real8),intent(in)::val(:),missing
+ integer(kind=int32),intent(in)::ntrait
+ integer(kind=real64)::combi
+ real(kind=real64),intent(in)::val(:),missing
 
- integer(kind=int4)::i
+ integer(kind=int32)::i
  
  combi=0
  do i=1,ntrait

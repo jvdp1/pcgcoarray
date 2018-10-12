@@ -1,16 +1,15 @@
 program  prepafile
+ use iso_fortran_env
  use modsparse
  implicit none
- integer,parameter::int4=4
- integer,parameter::real8=8
- integer(kind=int4)::io,un,unin,i,j,k,l,m,n,image,numimages=4
- integer(kind=int4)::nia,startrow,startcol,endrow,endcol,ndiag
- integer(kind=int4)::nel
- integer(kind=int4),allocatable::ia(:),ja(:)
+ integer(kind=int32)::io,un,unin,i,j,k,l,m,n,image,numimages=4
+ integer(kind=int32)::nia,startrow,startcol,endrow,endcol,ndiag
+ integer(kind=int32)::nel
+ integer(kind=int32),allocatable::ia(:),ja(:)
  character(len=3)::typesparse='col'
  character(len=100)::cdummy
- real(kind=real8)::val
- real(kind=real8),allocatable::a(:)
+ real(kind=real64)::val
+ real(kind=real64),allocatable::a(:)
  logical::lex
  type(crssparse)::crs,crssub,crssubtmp
 
