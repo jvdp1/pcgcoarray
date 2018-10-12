@@ -1047,7 +1047,7 @@ subroutine addalphabetatot(T,iter,previousalpha,beta)
  b=sqrt(beta)
  previousiter=iter-1
 
- T(previousiter,previousiter)=T(previousiter,previousiter)+1._real8/previousalpha
+ T(previousiter,previousiter)=T(previousiter,previousiter)+1._real64/previousalpha
  T(previousiter,iter)=T(previousiter,iter)+b/previousalpha
  T(iter,previousiter)=T(iter,previousiter)+b/previousalpha
  T(iter,iter)=T(iter,iter)+beta/previousalpha
@@ -1158,7 +1158,7 @@ function norm(vector,starteq,endeq)
  
  integer(kind=int32)::i
 
- norm=0._real8
+ norm=0._real64
  do i=starteq,endeq
   norm=norm+vector(i)**2
  enddo
@@ -1180,7 +1180,7 @@ subroutine readrhs(rhs,crhs,startrow,endrow,unlog)
  write(unlog,'(/a)')' Start to read the rhs'
  !$ t1=omp_get_wtime()
 
- rhs=0._real8
+ rhs=0._real64
  open(newunit=un,file=trim(crhs),access='stream',action='read',status='old')!,buffered='yes')
  read(un)i
  i=0
