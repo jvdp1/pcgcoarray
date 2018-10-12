@@ -1,7 +1,7 @@
 include ../Makeinit
 
 LIBPCGCOARRAYROOT=../lib/
-LIBPCGCOARRAY=libpcgcoarray.a
+LIBPCGCOARRAY=libcoarraysolver.a
 
 COARRAYENABLE=#shared
 

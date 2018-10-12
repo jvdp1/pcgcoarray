@@ -23,3 +23,6 @@ clean:
 	cd example_crs_gen;make clean
 	cd example_fpcg;make clean
 	cd example_gen_gen;make clean
+
+cleanlib:
+	rm -rf */*.o */*.mod

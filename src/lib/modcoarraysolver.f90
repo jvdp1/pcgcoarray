@@ -4,6 +4,7 @@ module modcoarraysolver
  use modsparse
  use modprecond,only:gen_precond
  use modcoeff,only:gen_coeff
+ use modcoarrayop
  implicit none
  private
  public::cg,chebyshev,pcg,fpcg
@@ -13,7 +14,7 @@ module modcoarraysolver
   private
   integer(kind=int32)::neq=-9
   integer(kind=int32)::unlog=6
-  integer(kind=int32)::maxit=1000
+  integer(kind=int32)::maxit=10000
   integer(kind=int32)::niter=-1
   real(kind=real64)::tol=1.e-6
   contains
@@ -228,21 +229,23 @@ subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  sync all
 
  !update on all images
- !1. update on image 1
- if(thisimage.eq.1)then
-  do i=2,num_images()
-   !receives updates from other for its own image
-   b_norm=b_norm+b_norm[i]
-   resvec1=resvec1+resvec1[i]
-  enddo
- endif
- sync all
- !2. update on the other image
- if(thisimage.ne.1)then
-  b_norm=b_norm[1]
-  resvec1=resvec1[1]
- endif
- sync all  !not sure if it is really needed
+! !1. update on image 1
+! if(thisimage.eq.1)then
+!  do i=2,num_images()
+!   !receives updates from other for its own image
+!   b_norm=b_norm+b_norm[i]
+!   resvec1=resvec1+resvec1[i]
+!  enddo
+! endif
+! sync all
+! !2. update on the other image
+! if(thisimage.ne.1)then
+!  b_norm=b_norm[1]
+!  resvec1=resvec1[1]
+! endif
+! sync all  !not sure if it is really needed
+ call co_sum(b_norm)
+ call co_sum(resvec1)
 
  conv=resvec1/b_norm
 
@@ -301,16 +304,17 @@ subroutine chebyshevrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   resvec1=norm(r,1,nrow)
 
   !update resvec1
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    resvec1=resvec1+resvec1[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)resvec1=resvec1[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    resvec1=resvec1+resvec1[i]
+!   enddo
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)resvec1=resvec1[1]
+  call co_sum(resvec1)
 
   conv=resvec1/b_norm
 
@@ -455,21 +459,23 @@ subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
  sync all
 
  !update on all images
- !1. update on image 1
- if(thisimage.eq.1)then
-  do i=2,num_images()
-   !receives updates from other for its own image
-   b_norm=b_norm+b_norm[i]
-   resvec1=resvec1+resvec1[i]
-  enddo
- endif
- sync all
- !2. update on the other image
- if(thisimage.ne.1)then
-  b_norm=b_norm[1]
-  resvec1=resvec1[1]
- endif
- sync all  !not sure if it is really needed
+! !1. update on image 1
+! if(thisimage.eq.1)then
+!  do i=2,num_images()
+!   !receives updates from other for its own image
+!   b_norm=b_norm+b_norm[i]
+!   resvec1=resvec1+resvec1[i]
+!  enddo
+! endif
+! sync all
+! !2. update on the other image
+! if(thisimage.ne.1)then
+!  b_norm=b_norm[1]
+!  resvec1=resvec1[1]
+! endif
+ !sync all  !not sure if it is really needed
+ call co_sum(b_norm)
+ call co_sum(resvec1)
 
  conv=resvec1/b_norm
 
@@ -501,16 +507,17 @@ subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
   enddo
 
   !update tau
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    tau=tau+tau[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)tau=tau[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    tau=tau+tau[i]
+!   enddo
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)tau=tau[1]
+  call co_sum(tau)
 
   beta=tau/oldtau
   oldtau=tau
@@ -543,17 +550,19 @@ subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
   enddo
 
   !update alpha
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    alpha=alpha+alpha[i]
-   enddo
-   alpha=tau/alpha
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)alpha=alpha[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    alpha=alpha+alpha[i]
+!   enddo
+!   alpha=tau/alpha
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)alpha=alpha[1]
+  call co_sum(alpha)
+  alpha=tau/alpha
 
   do i=startrow,endrow
    x(i)=x(i)+alpha*p(i)
@@ -565,16 +574,17 @@ subroutine cgrowcoarray(this,crs,x,crhs,startrow,endrow)
   resvec1=norm(r,1,nrow)
 
   !update resvec1
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    resvec1=resvec1+resvec1[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)resvec1=resvec1[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    resvec1=resvec1+resvec1[i]
+!   enddo
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)resvec1=resvec1[1]
+  call co_sum(resvec1)
 
   conv=resvec1/b_norm
 
@@ -712,21 +722,22 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
  sync all
 
  !update on all images
- !1. update on image 1
- if(thisimage.eq.1)then
-  do i=2,num_images()
-   !receives updates from other for its own image
-   b_norm=b_norm+b_norm[i]
-   resvec1=resvec1+resvec1[i]
-  enddo
- endif
- sync all
- !2. update on the other image
- if(thisimage.ne.1)then
-  b_norm=b_norm[1]
-  resvec1=resvec1[1]
- endif
- sync all  !not sure if it is really needed
+! !1. update on image 1
+! if(thisimage.eq.1)then
+!  do i=2,num_images()
+!   !receives updates from other for its own image
+!   b_norm=b_norm+b_norm[i]
+!   resvec1=resvec1+resvec1[i]
+!  enddo
+! endif
+! sync all
+! !2. update on the other image
+! if(thisimage.ne.1)then
+!  b_norm=b_norm[1]
+!  resvec1=resvec1[1]
+! endif
+ call co_sum(b_norm)
+ call co_sum(resvec1)
 
  conv=resvec1/b_norm
 
@@ -760,16 +771,17 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   enddo
 
   !update tau
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    tau=tau+tau[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)tau=tau[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    tau=tau+tau[i]
+!   enddo
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)tau=tau[1]
+  call co_sum(tau)
 
   beta=tau/oldtau
   oldtau=tau
@@ -802,17 +814,19 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   enddo
 
   !update alpha
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    alpha=alpha+alpha[i]
-   enddo
-   alpha=tau/alpha
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)alpha=alpha[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    alpha=alpha+alpha[i]
+!   enddo
+!   alpha=tau/alpha
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)alpha=alpha[1]
+  call co_sum(alpha)
+  alpha=tau/alpha
 
   do i=startrow,endrow
    x(i)=x(i)+alpha*p(i)
@@ -824,16 +838,17 @@ subroutine pcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   resvec1=norm(r,1,nrow)
 
   !update resvec1
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    resvec1=resvec1+resvec1[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)resvec1=resvec1[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    resvec1=resvec1+resvec1[i]
+!   enddo
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)resvec1=resvec1[1]
+  call co_sum(resvec1)
 
   conv=resvec1/b_norm
 
@@ -971,20 +986,22 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
 
  !update on all images
  !1. update on image 1
- if(thisimage.eq.1)then
-  do i=2,num_images()
-   !receives updates from other for its own image
-   b_norm=b_norm+b_norm[i]
-   resvec1=resvec1+resvec1[i]
-  enddo
- endif
- sync all
- !2. update on the other image
- if(thisimage.ne.1)then
-  b_norm=b_norm[1]
-  resvec1=resvec1[1]
- endif
- sync all  !not sure if it is really needed
+! if(thisimage.eq.1)then
+!  do i=2,num_images()
+!   !receives updates from other for its own image
+!   b_norm=b_norm+b_norm[i]
+!   resvec1=resvec1+resvec1[i]
+!  enddo
+! endif
+! sync all
+! !2. update on the other image
+! if(thisimage.ne.1)then
+!  b_norm=b_norm[1]
+!  resvec1=resvec1[1]
+! endif
+! sync all  !not sure if it is really needed
+ call co_sum(b_norm)
+ call co_sum(resvec1)
 
  conv=resvec1/b_norm
 
@@ -1018,16 +1035,17 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   enddo
 
   !update tau
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    tau=tau+tau[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)tau=tau[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    tau=tau+tau[i]
+!   enddo
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)tau=tau[1]
+  call co_sum(tau)
 
   beta=tau/oldtau
   oldtau=tau
@@ -1060,17 +1078,19 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   enddo
 
   !update alpha
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    alpha=alpha+alpha[i]
-   enddo
-   alpha=tau/alpha
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)alpha=alpha[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    alpha=alpha+alpha[i]
+!   enddo
+!   alpha=tau/alpha
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)alpha=alpha[1]
+  call co_sum(alpha)
+  alpha=tau/alpha
 
   do i=startrow,endrow
    x(i)=x(i)+alpha*p(i)
@@ -1083,16 +1103,17 @@ subroutine fpcgrowcoarray(this,crs,x,crhs,precond,startrow,endrow)
   resvec1=norm(r,1,nrow)
 
   !update resvec1
-  sync all
-  if(thisimage.eq.1)then
-   do i=2,num_images()
-    !receives updates from other for its own image
-    resvec1=resvec1+resvec1[i]
-   enddo
-  endif
-  sync all
-  !2. update on the other image
-  if(thisimage.ne.1)resvec1=resvec1[1]
+!  sync all
+!  if(thisimage.eq.1)then
+!   do i=2,num_images()
+!    !receives updates from other for its own image
+!    resvec1=resvec1+resvec1[i]
+!   enddo
+!  endif
+!  sync all
+!  !2. update on the other image
+!  if(thisimage.ne.1)resvec1=resvec1[1]
+  call co_sum(resvec1)
 
   conv=resvec1/b_norm
 
