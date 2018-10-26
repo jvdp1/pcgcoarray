@@ -1,3 +1,5 @@
+METISENABLE=0
+
 F90=ifort
 
 LIBSPARSEROOT=../../../libsparse/src/lib/
