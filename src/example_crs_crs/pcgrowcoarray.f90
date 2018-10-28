@@ -5,6 +5,7 @@ program  pcgrowcorray
  use modcoarraysolver
  implicit none
  integer(kind=int32)::thisimage,unlog
+ integer(kind=int32)::i
  integer(kind=int32)::neq
  integer(kind=int32)::startrow[*],endrow[*],startcol[*],endcol[*]
  character(len=80)::host,cdummy,cdummy1
@@ -50,6 +51,7 @@ program  pcgrowcorray
  !create preconditioner
  cdummy1='crs_precond.row'//adjustl(cdummy(:len_trim(cdummy)))
  crsprecond=crssparse(cdummy1,unlog)
+ call crsprecond%setpermutation([(i,i=1,crsprecond%getdim(1))])
  call crsprecond%printstats()
 
  !solution vector
