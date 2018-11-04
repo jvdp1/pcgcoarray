@@ -1,16 +1,16 @@
 program  pcgrowcorray_r
+ use iso_fortran_env
  !$ use omp_lib
- use modkind
  use modsparse
  use modcoarraysolver
  use modmyprecond
  implicit none
- integer(kind=int4)::thisimage,unlog
- integer(kind=int4)::neq
- integer(kind=int4)::startrow[*],endrow[*],startcol[*],endcol[*]
+ integer(kind=int32)::thisimage,unlog
+ integer(kind=int32)::neq
+ integer(kind=int32)::startrow[*],endrow[*],startcol[*],endcol[*]
  character(len=80)::host,cdummy,cdummy1
- real(kind=real8),allocatable::x(:)[:]
- !$ real(kind=real8)::t2
+ real(kind=real64),allocatable::x(:)[:]
+ !$ real(kind=real64)::t2
  type(arrayprecond)::crsprecond
  type(crssparse)::crs
  type(crssparse)::crssubtmp
@@ -81,10 +81,10 @@ program  pcgrowcorray_r
 contains
 
 subroutine readparam(startrow,endrow,startcol,endcol,unlog)
- integer(kind=int4),intent(in)::unlog
- integer(kind=int4),intent(inout)::startrow[*],endrow[*],startcol[*],endcol[*]
+ integer(kind=int32),intent(in)::unlog
+ integer(kind=int32),intent(inout)::startrow[*],endrow[*],startcol[*],endcol[*]
 
- integer(kind=int4)::io,un,i,j,k,l,m,n
+ integer(kind=int32)::io,un,i,j,k,l,m,n
 
  open(newunit=un,file='param.pcgcoarray.row',status='old',action='read')
  n=0
@@ -111,10 +111,10 @@ end subroutine
 
 !PRINT
 subroutine print_ascii(x,startpos,endpos,unlog)
- integer(kind=int4),intent(in)::startpos,endpos,unlog
- real(kind=real8),intent(in)::x(:)
+ integer(kind=int32),intent(in)::startpos,endpos,unlog
+ real(kind=real64),intent(in)::x(:)
 
- integer(kind=int4)::un,i
+ integer(kind=int32)::un,i
 
  write(unlog,'(/a,i0,a)')" Image ",this_image()," starts to write the solutions!"
 

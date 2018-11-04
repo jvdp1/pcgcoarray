@@ -1,7 +1,7 @@
 include ../Makeinit
 
 LIBPCGCOARRAYROOT=../lib/
-LIBPCGCOARRAY=libpcgcoarray.a
+LIBPCGCOARRAY=libcoarraysolver.a
 
 COARRAYENABLE=#shared
 
@@ -34,6 +34,15 @@ else
  debugext=
 endif
 
+ifeq ($(METISENABLE),0)
+ METIS=0
+ LIBMETISROOT=
+ LIBMETIS=
+else
+ METIS=1
+ F90FLAGS+=-I $(LIBMETISROOT)
+endif
+
 OBJ=modmvlr.o
 ifneq ($(COARRAYENABLE),)
  OBJ+=modmyprecond.o
@@ -48,10 +57,10 @@ endif
 all: $(EXEC)
 
 prepamvlr: $(OBJ) prepamvlr.f90 
-	$(F90) $(F90FLAGS) $^ -o $@$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE)
+	$(F90) $(F90FLAGS) $^ -o $@$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE) $(LIBMETISROOT)$(LIBMETIS)
 
 pcgrowcoarray_mvlr: $(OBJ) pcgrowcoarray_mvlr.f90
-	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) -DCOARRAY=$(coarray) $^ -o $@$(coarraytype)$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE) $(LIBPCGCOARRAYROOT)$(LIBPCGCOARRAY)
+	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) -DCOARRAY=$(coarray) $^ -o $@$(coarraytype)$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE) $(LIBMETISROOT)$(LIBMETIS) $(LIBPCGCOARRAYROOT)$(LIBPCGCOARRAY)
 
 %.o: %.f90
 	$(F90) -c $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) -DCOARRAY=$(coarray) $< -o $@

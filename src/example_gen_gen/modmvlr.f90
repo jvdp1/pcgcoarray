@@ -1,6 +1,6 @@
 module modmvlr
+ use iso_fortran_env
  !$ use omp_lib
- use modkind
  use modsparse
 #if (COARRAY==1)
  use modcoeff,only:gen_coeff
@@ -11,7 +11,7 @@ module modmvlr
  public::mvlr
 
  type::typeres
-  real(kind=real8),allocatable::mat(:,:)
+  real(kind=real64),allocatable::mat(:,:)
  end type
 
 #if (COARRAY==1)
@@ -20,13 +20,13 @@ module modmvlr
  type::mvlr
 #endif
   private
-  integer(kind=int4)::unlog=6
-  integer(kind=int4)::nphen,ntrait,neffect,ncov,neq
-  integer(kind=int4)::startphen,endphen,nsubphen
-  integer(kind=int4),allocatable::effect(:,:)
-  integer(kind=int8),allocatable::presentpheno(:)
-  real(kind=real8),allocatable::pheno(:,:)
-  real(kind=real8),allocatable::resmati(:,:)
+  integer(kind=int32)::unlog=6
+  integer(kind=int32)::nphen,ntrait,neffect,ncov,neq
+  integer(kind=int32)::startphen,endphen,nsubphen
+  integer(kind=int32),allocatable::effect(:,:)
+  integer(kind=int64),allocatable::presentpheno(:)
+  real(kind=real64),allocatable::pheno(:,:)
+  real(kind=real64),allocatable::resmati(:,:)
   character(len=30)::datafile,resfile
   logical,allocatable::model(:,:)
   type(typeres),allocatable::tres(:)
@@ -47,7 +47,7 @@ contains
 !**GET #EQUATIONS
 function getneq(this) result(neq)
  class(mvlr),intent(in)::this
- integer(kind=int4)::neq
+ integer(kind=int32)::neq
 
  neq=this%neq
 end function
@@ -56,12 +56,12 @@ end function
 subroutine init_mvlr(this,paramfile,unlog)
  class(mvlr),intent(inout)::this
  character(len=*),intent(in)::paramfile
- integer(kind=int4),intent(in),optional::unlog
+ integer(kind=int32),intent(in),optional::unlog
 
- integer(kind=int4)::i,k,un,io,nsize
- integer(kind=int4),allocatable::itmp(:)
- integer(kind=int8)::i8tmp,maxcombi
- real(kind=real8),allocatable::rtmp(:)
+ integer(kind=int32)::i,k,un,io,nsize
+ integer(kind=int32),allocatable::itmp(:)
+ integer(kind=int64)::i8tmp,maxcombi
+ real(kind=real64),allocatable::rtmp(:)
  logical,allocatable::ltmp(:)
 
  if(present(unlog))this%unlog=unlog
@@ -145,14 +145,14 @@ subroutine init_mvlr(this,paramfile,unlog)
    this%tres(i8tmp)%mat=this%resmati
    do i=1,this%ntrait
     if(ibits(i8tmp,i-1,1).eq.0)then
-     this%tres(i8tmp)%mat(:,i)=0._real8
-     this%tres(i8tmp)%mat(i,:)=0._real8
-     this%tres(i8tmp)%mat(i,i)=1._real8
+     this%tres(i8tmp)%mat(:,i)=0._real64
+     this%tres(i8tmp)%mat(i,:)=0._real64
+     this%tres(i8tmp)%mat(i,i)=1._real64
     endif
    enddo
    call invsym(this%tres(i8tmp)%mat,this%ntrait,this%ntrait)
    do i=1,this%ntrait
-    if(ibits(i8tmp,i-1,1).eq.0)this%tres(i8tmp)%mat(i,i)=0._real8
+    if(ibits(i8tmp,i-1,1).eq.0)this%tres(i8tmp)%mat(i,i)=0._real64
    enddo
   endif
  enddo
@@ -172,14 +172,14 @@ end subroutine
 subroutine multbyv_mvlr(this,x,y,starteq,endeq)
  !y=M*x=X'*Ri*X*x
  class(mvlr),intent(inout)::this
- integer(kind=int4),intent(in)::starteq,endeq
- real(kind=real8),intent(in)::x(:)
- real(kind=real8),intent(inout)::y(:)
+ integer(kind=int32),intent(in)::starteq,endeq
+ real(kind=real64),intent(in)::x(:)
+ real(kind=real64),intent(inout)::y(:)
 
- integer(kind=int4)::i,j,k,address
- real(kind=real8),allocatable::t1(:),t2(:),xmat(:,:),ri(:,:)
- real(kind=real8),allocatable,save::ylong(:)[:]
- !$ real(kind=real8)::time1,time2
+ integer(kind=int32)::i,j,k,address
+ real(kind=real64),allocatable::t1(:),t2(:),xmat(:,:),ri(:,:)
+ real(kind=real64),allocatable,save::ylong(:)[:]
+ !$ real(kind=real64)::time1,time2
  
  !$ time1=omp_get_wtime()
  if(.not.allocated(ylong))then
@@ -190,11 +190,11 @@ subroutine multbyv_mvlr(this,x,y,starteq,endeq)
  endif
 
 
- ylong=0_real8
+ ylong=0_real64
  
  sync all
 
- y=0_real8
+ y=0_real64
 
  allocate(t1(this%ntrait),t2(this%ntrait))
  allocate(xmat(this%ntrait,this%neffect),ri(this%ntrait,this%ntrait))
@@ -248,11 +248,11 @@ end subroutine
 !**PRECONDITIONER
 function computediag_vect_mvlr(this) result(array)
  class(mvlr),intent(inout)::this
- real(kind=real8),allocatable::array(:)
+ real(kind=real64),allocatable::array(:)
 
- integer(kind=int4)::i,j,k,l,m,address1,address2
- real(kind=real8)::val
- real(kind=real8),allocatable::xmat(:,:),ri(:,:)
+ integer(kind=int32)::i,j,k,l,m,address1,address2
+ real(kind=real64)::val
+ real(kind=real64),allocatable::xmat(:,:),ri(:,:)
  type(coosparse)::sparse
 
  allocate(xmat(this%ntrait,this%neffect),ri(this%ntrait,this%ntrait))
@@ -294,15 +294,15 @@ end function
 !PRIVATE
 subroutine getX(this,xmat,iphen)
  type(mvlr),intent(inout)::this
- integer(kind=int4),intent(in)::iphen
- real(kind=real8),intent(inout)::xmat(:,:)
+ integer(kind=int32),intent(in)::iphen
+ real(kind=real64),intent(inout)::xmat(:,:)
 
- integer(kind=int4)::i,j
+ integer(kind=int32)::i,j
 
- xmat=1_real8
+ xmat=1_real64
  do j=1,this%neffect
   do i=1,this%ntrait
-   if(.not.this%model(i,j))xmat(i,j)=0_real8
+   if(.not.this%model(i,j))xmat(i,j)=0_real64
   enddo
  enddo
 
@@ -310,10 +310,10 @@ end subroutine
 
 subroutine invsym(a,n,m)
  !Inverse of a real symmetric positive definite matrix of size n*n declared as m*m 
- integer(kind=int4),intent(in)::n,m
- real(kind=real8),intent(inout)::a(:,:)
+ integer(kind=int32),intent(in)::n,m
+ real(kind=real64),intent(inout)::a(:,:)
 
- integer(kind=int4)::info,i,j
+ integer(kind=int32)::info,i,j
  
  call dpotrf('L',n,a,m,info)
  if (info.ne.0) then

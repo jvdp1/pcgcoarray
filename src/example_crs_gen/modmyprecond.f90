@@ -1,6 +1,6 @@
 module modmyprecond
+ use iso_fortran_env
  !$ use omp_lib
- use modkind
 #if (COARRAY==1)
  use modprecond,only:gen_precond
 #endif
@@ -13,8 +13,8 @@ module modmyprecond
 #else
  type::arrayprecond
 #endif
-  integer(kind=int4)::dim1
-  real(kind=real8),allocatable::array(:)
+  integer(kind=int32)::dim1
+  real(kind=real64),allocatable::array(:)
  contains
   procedure,public::solve
  end type
@@ -25,15 +25,15 @@ contains
 subroutine solve(this,x,y)
  !solve this*x=y, by doing x=inv(this)*y
  class(arrayprecond),intent(inout)::this
- real(kind=real8),intent(out)::x(:)
- real(kind=real8),intent(inout)::y(:)
+ real(kind=real64),intent(out)::x(:)
+ real(kind=real64),intent(inout)::y(:)
  
- integer(kind=int4)::i
+ integer(kind=int32)::i
  logical,save::lnotinverse=.true.
 
  if(lnotinverse)then
   do i=1,this%dim1
-   if(this%array(i).ne.0_real8)this%array(i)=1._real8/this%array(i)
+   if(this%array(i).ne.0_real64)this%array(i)=1._real64/this%array(i)
   enddo
   lnotinverse=.false.
  endif

@@ -28,12 +28,12 @@ else
 endif
 
 
-all:	libpcgcoarray.a
+all:	libcoarraysolver.a
 
-OBJ=modkind.o modprecond.o modcoeff.o modcoarraysolver.o 
+OBJ=modprecond.o modcoeff.o modcoarrayop.o modcoarraysolver.o 
 
-libpcgcoarray.a: $(OBJ)
-	ar cr  libpcgcoarray.a $(OBJ)
+libcoarraysolver.a: $(OBJ)
+	ar cr  libcoarraysolver.a $(OBJ)
 
 %.o: %.f90
 	$(F90) -c $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) $< -o $@

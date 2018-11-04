@@ -1,7 +1,12 @@
+METISENABLE=0
+
 F90=ifort
 
 LIBSPARSEROOT=../../../libsparse/src/lib/
 LIBSPARSE=libsparse.a
+
+LIBMETISROOT=../../../metis-5.1.0/build/Linux-x86_64/libmetis/
+LIBMETIS=libmetis.a
 
 F90FLAGS=-O3 -heap-arrays -qopenmp -parallel -stand f08
 F90FLAGS+=-I$(LIBSPARSEROOT)

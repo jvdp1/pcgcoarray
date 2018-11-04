@@ -1,7 +1,7 @@
 include ../Makeinit
 
 LIBPCGCOARRAYROOT=../lib/
-LIBPCGCOARRAY=libpcgcoarray.a
+LIBPCGCOARRAY=libcoarraysolver.a
 
 COARRAYENABLE=#shared
 
@@ -30,6 +30,14 @@ else
  debugext=
 endif
 
+ifeq ($(METISENABLE),0)
+ METIS=0
+ LIBMETISROOT=
+ LIBMETIS=
+else
+ METIS=1
+ F90FLAGS+=-I $(LIBMETISROOT)
+endif
 
 EXEC=prepafile
 
@@ -40,10 +48,10 @@ endif
 all: $(EXEC)
 
 prepafile: prepafile.f90 
-	$(F90) $(F90FLAGS) $^ -o $@$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE)
+	$(F90) $(F90FLAGS) $^ -o $@$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE) $(LIBMETISROOT)$(LIBMETIS)
 
 pcgrowcoarray: pcgrowcoarray.f90
-	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) $^ -o $@$(coarraytype)$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE) $(LIBPCGCOARRAYROOT)$(LIBPCGCOARRAY)
+	$(F90) $(F90FLAGS) $(F90FLAGSUB) $(DEBUG) -fpp -DTOUTPUT=$(toutput) -D_METIS=$(METIS) $^ -o $@$(coarraytype)$(debugext) $(LIBSPARSEROOT)$(LIBSPARSE) $(LIBMETISROOT)$(LIBMETIS) $(LIBPCGCOARRAYROOT)$(LIBPCGCOARRAY)
 
 cleanlib:
 	rm -rf *.o *.mod

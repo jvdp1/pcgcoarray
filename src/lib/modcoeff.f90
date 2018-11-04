@@ -1,7 +1,6 @@
 module modcoeff
+ use iso_fortran_env
  !$ use omp_lib
- use modkind
- !use modsparse
  implicit none
  private
  public::gen_coeff
@@ -15,11 +14,11 @@ module modcoeff
 
  abstract interface
   subroutine multbyv_gen(this,x,y,starteq,endeq)
-   import::gen_coeff,int4,real8
+   import::gen_coeff,int32,real64
    class(gen_coeff),intent(inout)::this
-   integer(kind=int4),intent(in)::starteq,endeq
-   real(kind=real8),intent(in)::x(:)
-   real(kind=real8),intent(inout)::y(:)
+   integer(kind=int32),intent(in)::starteq,endeq
+   real(kind=real64),intent(in)::x(:)
+   real(kind=real64),intent(inout)::y(:)
   end subroutine
  end interface
 
