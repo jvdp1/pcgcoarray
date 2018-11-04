@@ -72,6 +72,7 @@ program  pcgrowcorray_mvlr
  !call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
  pcgsolver=pcg(neq)
  call pcgsolver%setoutput(unlog)
+ call pcgsolver%printstats()
  call pcgsolver%solve(reg,x,'rhs.bin',precond,startrow,endrow)
 
  sync all

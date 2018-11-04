@@ -20,6 +20,7 @@ module modcoarraysolver
   contains
   private
   procedure,public::getiter
+  procedure,public::printstats
   procedure,public::setmaxiterations
   procedure,public::setthreshold
   procedure,public::setoutput
@@ -106,6 +107,17 @@ function getiter(this) result(niter)
  niter=this%niter
 
 end function
+
+!**GET PARAMETERS
+subroutine printstats(this)
+ class(solver),intent(in)::this
+
+ write(this%unlog,'(/a,i0)')' Number of equations         : ',this%neq
+ write(this%unlog,'( a,i0)')' Maximum number of iterations: ',this%maxit
+ write(this%unlog,'( a,i0)')' Current number of iterations: ',this%niter
+ write(this%unlog,'( a,g0.5)')' Termination criteria        : ',this%tol
+
+end subroutine
 
 !**SET MAXIMUM ITERATIONS
 subroutine setmaxiterations(this,maxit)
