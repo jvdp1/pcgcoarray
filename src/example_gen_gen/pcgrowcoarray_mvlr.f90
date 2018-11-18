@@ -3,18 +3,18 @@ program  pcgrowcorray_mvlr
  !$ use omp_lib
  use modcoarraysolver
  use modmyprecond
- use modmvlr
+ use modmme
  implicit none
  integer(kind=int32)::thisimage,unlog
  integer(kind=int32)::neq
  integer(kind=int32)::un
  integer(kind=int32)::startrow[*],endrow[*],startcol[*],endcol[*]
- character(len=80)::host,cdummy
+ character(len=80)::host,cdummy,cdummy1
  real(kind=real64),allocatable::array(:)
  real(kind=real64),allocatable::x(:)[:]
  !$ real(kind=real64)::t2
  type(arrayprecond)::precond
- type(mvlr)::reg
+ type(mme)::reg
  type(pcg)::pcgsolver
 
  !$ t2=omp_get_wtime() 
@@ -45,7 +45,9 @@ program  pcgrowcorray_mvlr
 
  !Reads the matrix
  cdummy='parammvlr.dat'
- call reg%init(cdummy,unlog)
+ cdummy1='paramsparse.dat'
+ !call reg%init(cdummy,unlog=unlog)
+ call reg%init(cdummy,cdummy1,startrow,endrow,unlog)
 
  neq=reg%getneq()
 
@@ -69,7 +71,6 @@ program  pcgrowcorray_mvlr
 
  sync all
 
- !call pcgrowcoarray(neq,reg,x,'rhs.bin',precond,startrow,endrow,unlog)
  pcgsolver=pcg(neq)
  call pcgsolver%setoutput(unlog)
  call pcgsolver%printstats()
