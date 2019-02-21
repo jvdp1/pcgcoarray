@@ -190,11 +190,11 @@ subroutine multbyv_mvlr(this,x,y,starteq,endeq)
  endif
 
 
- ylong=0_real64
+ ylong=0._real64
  
  sync all
 
- y=0_real64
+ y=0._real64
 
  allocate(t1(this%ntrait),t2(this%ntrait))
  allocate(xmat(this%ntrait,this%neffect),ri(this%ntrait,this%ntrait))
@@ -206,7 +206,7 @@ subroutine multbyv_mvlr(this,x,y,starteq,endeq)
   !get Ri
   ri=this%tres(this%presentpheno(i))%mat
   !1) t1=X*x
-  t1=0.d0
+  t1=0._real64
   do j=1,this%neffect
    address=this%effect(j,i)
    do k=1,this%ntrait
@@ -214,7 +214,7 @@ subroutine multbyv_mvlr(this,x,y,starteq,endeq)
    enddo
   enddo
   !2) t2=Ri*t1
-  t2=0.d0
+  t2=0._real64
   do j=1,this%ntrait
    do k=1,this%ntrait
     t2(j)=t2(j)+ri(k,j)*t1(k)
@@ -299,10 +299,10 @@ subroutine getX(this,xmat,iphen)
 
  integer(kind=int32)::i,j
 
- xmat=1_real64
+ xmat=1._real64
  do j=1,this%neffect
   do i=1,this%ntrait
-   if(.not.this%model(i,j))xmat(i,j)=0_real64
+   if(.not.this%model(i,j))xmat(i,j)=0._real64
   enddo
  enddo
 
